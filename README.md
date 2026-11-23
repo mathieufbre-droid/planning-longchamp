@@ -7,7 +7,7 @@ Base technique reprise de l'application Plombelec (connexion Supabase par invita
 
 | Adresse | Pour qui | Contenu |
 |---|---|---|
-| `/` | Tous les membres actifs | Planning annuel : semaines du samedi au samedi regroupées par mois, avec leur week-end (vendredi → dimanche). Flèches pour changer d'année, liste de toutes les réservations de l'année en bas. |
+| `/` | Tous les membres actifs | Planning annuel : semaines regroupées par mois, chacune avec sa semaine (lundi → vendredi) et son week-end (samedi → dimanche). Flèches pour changer d'année, liste de toutes les réservations de l'année en bas. |
 | `/membres` | Administrateurs | Activation des comptes, prénom / nom, rôle |
 | `/login`, `/en-attente` | — | Connexion ; page affichée tant qu'un compte n'est pas activé |
 
@@ -20,9 +20,9 @@ Les droits sont vérifiés par la base (Row Level Security), pas seulement par l
 
 ## Règles appliquées par la base
 
-- Une réservation occupe les nuits de l'arrivée (incluse) au départ (exclu) : départ et arrivée le même samedi ne se chevauchent pas.
+- Une réservation occupe les jours du premier au dernier, tous deux inclus : la semaine (lundi → vendredi) et le week-end (samedi → dimanche) se réservent séparément.
 - **Aucun chevauchement** possible entre deux réservations (contrainte d'exclusion PostgreSQL), même saisies en même temps.
-- Occupant obligatoire, au moins une nuit, 62 nuits au maximum.
+- Occupant obligatoire, 62 jours au maximum.
 - Tout nouveau compte est **inactif** et ne voit rien tant qu'un administrateur ne l'a pas activé.
 - Il reste toujours **au moins un administrateur actif** (impossible de se rétrograder si on est le dernier).
 
@@ -45,6 +45,6 @@ Déploiement : comme Plombelec, sur Vercel avec les deux variables `NEXT_PUBLIC_
 ## Tests
 
 ```bash
-npm test                         # découpage de l'année, week-ends, chevauchements
+npm test                         # découpage de l'année (lundi → vendredi, samedi → dimanche), chevauchements
 supabase/tests/lancer_tests.sh   # règles de la base sur un PostgreSQL 15+ local jetable : « TOUS LES SCÉNARIOS PASSENT »
 ```

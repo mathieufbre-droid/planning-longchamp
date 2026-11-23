@@ -11,28 +11,28 @@ UPDATE membres SET actif = true WHERE email = 'lecteur@x.fr';
 
 SET ROLE authenticated;
 
--- Admin : réserve deux semaines consécutives (samedi → samedi) et un week-end
+-- Admin : réserve une semaine (lundi → vendredi), le week-end qui suit et une autre semaine
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
-INSERT INTO reservations (arrivee, depart, type, occupant) VALUES
- ('2026-12-19','2026-12-26','SEMAINE','Famille Martin'),
- ('2026-12-26','2027-01-02','SEMAINE','Cousins Durand'),
- ('2027-01-08','2027-01-10','WEEK_END','Paul');
+INSERT INTO reservations (debut, fin, type, occupant) VALUES
+ ('2027-01-04','2027-01-08','SEMAINE','Famille Martin'),
+ ('2027-01-09','2027-01-10','WEEK_END','Paul'),
+ ('2027-01-11','2027-01-15','SEMAINE','Cousins Durand');
 DO $$ BEGIN
   IF (SELECT count(*) FROM reservations) <> 3 THEN RAISE EXCEPTION 'réservations manquantes'; END IF;
   IF (SELECT cree_par FROM reservations WHERE occupant = 'Paul') <> auth.uid() THEN RAISE EXCEPTION 'cree_par non renseigné'; END IF;
   -- Chevauchement refusé
   BEGIN
-    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2026-12-24','2026-12-27','Intrus');
+    INSERT INTO reservations (debut, fin, occupant) VALUES ('2027-01-08','2027-01-08','Intrus');
     RAISE EXCEPTION 'chevauchement accepté';
   EXCEPTION WHEN exclusion_violation THEN NULL; END;
   -- Dates incohérentes refusées
   BEGIN
-    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2027-02-10','2027-02-10','Zéro nuit');
-    RAISE EXCEPTION 'réservation de zéro nuit acceptée';
+    INSERT INTO reservations (debut, fin, occupant) VALUES ('2027-02-10','2027-02-09','À l''envers');
+    RAISE EXCEPTION 'fin avant début acceptée';
   EXCEPTION WHEN check_violation THEN NULL; END;
   -- Occupant obligatoire
   BEGIN
-    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2027-03-01','2027-03-03','  ');
+    INSERT INTO reservations (debut, fin, occupant) VALUES ('2027-03-01','2027-03-03','  ');
     RAISE EXCEPTION 'occupant vide accepté';
   EXCEPTION WHEN check_violation THEN NULL; END;
   -- Modification et suppression
@@ -55,7 +55,7 @@ DO $$ DECLARE n INT; BEGIN
   IF (SELECT count(*) FROM reservations) <> 3 THEN RAISE EXCEPTION 'lecteur ne voit pas les réservations'; END IF;
   IF (SELECT count(*) FROM membres) <> 3 THEN RAISE EXCEPTION 'lecteur ne voit pas les membres'; END IF;
   BEGIN
-    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2027-04-01','2027-04-03','Moi');
+    INSERT INTO reservations (debut, fin, occupant) VALUES ('2027-04-01','2027-04-03','Moi');
     RAISE EXCEPTION 'lecteur a pu réserver';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   UPDATE reservations SET occupant = 'Pirate'; GET DIAGNOSTICS n = ROW_COUNT;

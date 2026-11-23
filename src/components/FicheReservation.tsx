@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { dateCourte, nuits, verifierPeriode, type TypeReservation } from "@/lib/planning";
+import { dateCourte, jours, verifierPeriode, type TypeReservation } from "@/lib/planning";
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
 
 export interface Brouillon {
   id?: number;
-  arrivee: string;
-  depart: string;
+  debut: string;
+  fin: string;
   type: TypeReservation;
   occupant: string;
   note: string;
@@ -37,7 +37,7 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
     const probleme = verifierPeriode(f, reservations, f.id) ?? (f.occupant.trim() ? null : "Indiquez qui occupe l'appartement.");
     if (probleme) return setErreur(probleme);
     setEnvoi(true);
-    const valeurs = { arrivee: f.arrivee, depart: f.depart, type: f.type, occupant: f.occupant.trim(), note: f.note.trim() };
+    const valeurs = { debut: f.debut, fin: f.fin, type: f.type, occupant: f.occupant.trim(), note: f.note.trim() };
     const { error } = f.id
       ? await supabase.from("reservations").update(valeurs).eq("id", f.id)
       : await supabase.from("reservations").insert(valeurs);
@@ -56,7 +56,7 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
   };
 
   const champ = "w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-50";
-  const duree = f.arrivee && f.depart && f.depart > f.arrivee ? nuits(f) : 0;
+  const duree = f.debut && f.fin && f.fin >= f.debut ? jours(f) : 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onFermer}>
@@ -71,15 +71,15 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
 
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm space-y-1">
-            <span className="text-slate-600">Arrivée</span>
-            <input type="date" required disabled={!admin} value={f.arrivee} onChange={(e) => setF({ ...f, arrivee: e.target.value })} className={champ} />
+            <span className="text-slate-600">Premier jour</span>
+            <input type="date" required disabled={!admin} value={f.debut} onChange={(e) => setF({ ...f, debut: e.target.value })} className={champ} />
           </label>
           <label className="text-sm space-y-1">
-            <span className="text-slate-600">Départ</span>
-            <input type="date" required disabled={!admin} value={f.depart} min={f.arrivee || undefined} onChange={(e) => setF({ ...f, depart: e.target.value })} className={champ} />
+            <span className="text-slate-600">Dernier jour</span>
+            <input type="date" required disabled={!admin} value={f.fin} min={f.debut || undefined} onChange={(e) => setF({ ...f, fin: e.target.value })} className={champ} />
           </label>
         </div>
-        {duree > 0 && <p className="text-xs text-slate-500 -mt-2">{dateCourte(f.arrivee)} → {dateCourte(f.depart)} · {duree} nuit{duree > 1 ? "s" : ""}</p>}
+        {duree > 0 && <p className="text-xs text-slate-500 -mt-2">{dateCourte(f.debut)} → {dateCourte(f.fin)} · {duree} jour{duree > 1 ? "s" : ""}</p>}
 
         <label className="text-sm space-y-1 block">
           <span className="text-slate-600">Type</span>

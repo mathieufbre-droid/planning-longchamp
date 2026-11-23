@@ -13,8 +13,8 @@ export interface Profil {
 
 export interface Reservation {
   id: number;
-  arrivee: string;
-  depart: string;
+  debut: string;
+  fin: string;
   type: TypeReservation;
   occupant: string;
   note: string;

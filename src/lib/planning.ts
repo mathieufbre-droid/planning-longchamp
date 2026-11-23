@@ -1,22 +1,23 @@
 // Découpage de l'année en semaines et week-ends.
 // Toutes les dates sont des chaînes « AAAA-MM-JJ » manipulées en UTC : pas de décalage de fuseau.
-// Une période occupe les nuits de « arrivee » (incluse) à « depart » (exclu).
+// Une période occupe les jours de « debut » à « fin », tous deux inclus.
 
 export type TypeReservation = "SEMAINE" | "WEEK_END" | "AUTRE";
 
 export interface Periode {
-  arrivee: string;
-  depart: string;
+  debut: string;
+  fin: string;
 }
 
 export interface Semaine {
-  /** Samedi d'arrivée */
-  arrivee: string;
-  /** Samedi de départ */
-  depart: string;
-  /** Week-end qui commence dans cette semaine : vendredi → dimanche */
+  /** Du lundi au dimanche : sert à afficher la carte et ce qui l'occupe */
+  debut: string;
+  fin: string;
+  /** Semaine réservable : lundi → vendredi */
+  jours: Periode;
+  /** Week-end réservable : samedi → dimanche */
   weekEnd: Periode;
-  /** Mois (0-11) du samedi d'arrivée : sert à regrouper l'affichage */
+  /** Mois (0-11) du lundi : sert à regrouper l'affichage */
   mois: number;
 }
 
@@ -25,36 +26,38 @@ const JOUR = 86_400_000;
 export const versDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
 export const versIso = (d: Date) => d.toISOString().slice(0, 10);
 export const ajouterJours = (iso: string, n: number) => versIso(new Date(versDate(iso).getTime() + n * JOUR));
-export const nuits = (p: Periode) => Math.round((versDate(p.depart).getTime() - versDate(p.arrivee).getTime()) / JOUR);
+/** Nombre de jours occupés, bornes incluses. */
+export const jours = (p: Periode) => Math.round((versDate(p.fin).getTime() - versDate(p.debut).getTime()) / JOUR) + 1;
 
-/** Les semaines samedi → samedi dont le samedi d'arrivée tombe dans l'année. */
+/** Les semaines du lundi au dimanche dont le lundi tombe dans l'année. */
 export function semainesDeLAnnee(annee: number): Semaine[] {
   const premier = new Date(Date.UTC(annee, 0, 1));
-  // 6 = samedi
-  const decalage = (6 - premier.getUTCDay() + 7) % 7;
+  // 1 = lundi
+  const decalage = (1 - premier.getUTCDay() + 7) % 7;
   const semaines: Semaine[] = [];
-  for (let samedi = ajouterJours(versIso(premier), decalage); versDate(samedi).getUTCFullYear() === annee; samedi = ajouterJours(samedi, 7)) {
+  for (let lundi = ajouterJours(versIso(premier), decalage); versDate(lundi).getUTCFullYear() === annee; lundi = ajouterJours(lundi, 7)) {
     semaines.push({
-      arrivee: samedi,
-      depart: ajouterJours(samedi, 7),
-      weekEnd: { arrivee: ajouterJours(samedi, 6), depart: ajouterJours(samedi, 8) },
-      mois: versDate(samedi).getUTCMonth(),
+      debut: lundi,
+      fin: ajouterJours(lundi, 6),
+      jours: { debut: lundi, fin: ajouterJours(lundi, 4) },
+      weekEnd: { debut: ajouterJours(lundi, 5), fin: ajouterJours(lundi, 6) },
+      mois: versDate(lundi).getUTCMonth(),
     });
   }
   return semaines;
 }
 
-export const seChevauchent = (a: Periode, b: Periode) => a.arrivee < b.depart && b.arrivee < a.depart;
+export const seChevauchent = (a: Periode, b: Periode) => a.debut <= b.fin && b.debut <= a.fin;
 
-/** Réservations qui occupent au moins une nuit de la période. */
+/** Réservations qui occupent au moins un jour de la période. */
 export const reservationsSur = <T extends Periode>(periode: Periode, reservations: T[]) =>
   reservations.filter((r) => seChevauchent(periode, r));
 
 /** Vérifie une période avant envoi ; renvoie un message d'erreur ou null. */
 export function verifierPeriode(p: Periode, existantes: (Periode & { id?: number })[], idModifie?: number): string | null {
-  if (!p.arrivee || !p.depart) return "Indiquez les dates d'arrivée et de départ.";
-  if (p.depart <= p.arrivee) return "Le départ doit être après l'arrivée.";
-  if (nuits(p) > 62) return "Une réservation ne peut pas dépasser 62 nuits.";
+  if (!p.debut || !p.fin) return "Indiquez le premier et le dernier jour.";
+  if (p.fin < p.debut) return "Le dernier jour doit être après le premier.";
+  if (jours(p) > 62) return "Une réservation ne peut pas dépasser 62 jours.";
   if (existantes.some((r) => r.id !== idModifie && seChevauchent(p, r))) return "Ces dates chevauchent une autre réservation.";
   return null;
 }
@@ -64,14 +67,14 @@ const MOIS_COURTS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", 
 const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 
 export const nomMois = (m: number) => MOIS[m];
-/** « sam. 19 déc. » */
+/** « lun. 4 janv. » */
 export const dateCourte = (iso: string) => {
   const d = versDate(iso);
   return `${JOURS[d.getUTCDay()]} ${d.getUTCDate()} ${MOIS_COURTS[d.getUTCMonth()]}`;
 };
-/** « 19 → 26 déc. » ou « 26 déc. → 2 janv. » */
+/** « 4 → 10 janv. » ou « 28 déc. → 3 janv. » */
 export const intervalle = (p: Periode) => {
-  const a = versDate(p.arrivee), d = versDate(p.depart);
+  const a = versDate(p.debut), d = versDate(p.fin);
   const memeMois = a.getUTCMonth() === d.getUTCMonth();
   return `${a.getUTCDate()}${memeMois ? "" : ` ${MOIS_COURTS[a.getUTCMonth()]}`} → ${d.getUTCDate()} ${MOIS_COURTS[d.getUTCMonth()]}`;
 };

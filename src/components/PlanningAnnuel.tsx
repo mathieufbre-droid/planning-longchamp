@@ -5,13 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  couleurOccupant, dateCourte, intervalle, nomMois, nuits, reservationsSur, semainesDeLAnnee, versIso,
+  couleurOccupant, dateCourte, intervalle, jours, nomMois, reservationsSur, semainesDeLAnnee, versIso,
   type Periode, type Semaine, type TypeReservation,
 } from "@/lib/planning";
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
 import FicheReservation, { type Brouillon } from "@/components/FicheReservation";
 
-/** Vue annuelle : semaines samedi → samedi regroupées par mois, avec le week-end de chacune. */
+/** Vue annuelle : semaines du lundi au dimanche regroupées par mois ; semaine lundi → vendredi, week-end samedi → dimanche. */
 export default function PlanningAnnuel({ annee, admin }: { annee: number; admin: boolean }) {
   const supabase = useMemo(() => createClient(), []);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -24,10 +24,10 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
 
   const charger = useCallback(async () => {
     const debut = `${annee}-01-01`;
-    const fin = semainesDeLAnnee(annee).at(-1)!.depart;
+    const fin = semainesDeLAnnee(annee).at(-1)!.fin;
     const [{ data, error }, { data: membres }] = await Promise.all([
-      supabase.from("reservations").select("id, arrivee, depart, type, occupant, note")
-        .lt("arrivee", fin).gt("depart", debut).order("arrivee"),
+      supabase.from("reservations").select("id, debut, fin, type, occupant, note")
+        .lte("debut", fin).gte("fin", debut).order("debut"),
       supabase.from("membres").select("prenom, nom").eq("actif", true),
     ]);
     setErreur(error ? messageErreur(error) : "");
@@ -41,7 +41,7 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
 
   useEffect(() => { charger(); }, [charger]);
 
-  const nouvelle = (p: Periode, type: TypeReservation) => setFiche({ arrivee: p.arrivee, depart: p.depart, type, occupant: "", note: "" });
+  const nouvelle = (p: Periode, type: TypeReservation) => setFiche({ debut: p.debut, fin: p.fin, type, occupant: "", note: "" });
   const ouvrir = (r: Reservation) => setFiche({ ...r });
 
   const parMois = useMemo(() => {
@@ -54,7 +54,7 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
     return groupes;
   }, [semaines]);
 
-  const totalNuits = reservations.reduce((t, r) => t + nuits(r), 0);
+  const totalJours = reservations.reduce((t, r) => t + jours(r), 0);
 
   return (
     <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
@@ -62,16 +62,16 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
         <Link href={`/?annee=${annee - 1}`} aria-label="Année précédente" className="p-2 rounded hover:bg-slate-200"><ChevronLeft size={20} /></Link>
         <h1 className="text-2xl font-bold tabular-nums">{annee}</h1>
         <Link href={`/?annee=${annee + 1}`} aria-label="Année suivante" className="p-2 rounded hover:bg-slate-200"><ChevronRight size={20} /></Link>
-        <p className="text-sm text-slate-500">{reservations.length} réservation{reservations.length > 1 ? "s" : ""} · {totalNuits} nuit{totalNuits > 1 ? "s" : ""}</p>
+        <p className="text-sm text-slate-500">{reservations.length} réservation{reservations.length > 1 ? "s" : ""} · {totalJours} jour{totalJours > 1 ? "s" : ""}</p>
         {admin && (
-          <button type="button" onClick={() => nouvelle({ arrivee: "", depart: "" }, "AUTRE")}
+          <button type="button" onClick={() => nouvelle({ debut: "", fin: "" }, "AUTRE")}
             className="ml-auto flex items-center gap-1.5 text-sm bg-sky-700 text-white px-3 py-2 rounded hover:bg-sky-800">
             <Plus size={16} /> Autres dates
           </button>
         )}
       </div>
       <p className="text-sm text-slate-500">
-        Semaines du samedi au samedi, week-ends du vendredi au dimanche.
+        Semaine du lundi au vendredi, week-end le samedi et le dimanche.
         {admin ? " Cliquez sur une semaine ou un week-end libre pour le réserver, ou sur une réservation pour la modifier." : " Lecture seule : seuls les administrateurs réservent."}
       </p>
       {erreur && <p className="text-sm text-red-600">{erreur}</p>}
@@ -81,8 +81,8 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{nomMois(mois)}</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {semaines.map((s) => (
-              <CarteSemaine key={s.arrivee} semaine={s} reservations={reservations} admin={admin}
-                passee={s.depart <= aujourdhui} enCours={s.arrivee <= aujourdhui && aujourdhui < s.depart}
+              <CarteSemaine key={s.debut} semaine={s} reservations={reservations} admin={admin}
+                passee={s.fin < aujourdhui} enCours={s.debut <= aujourdhui && aujourdhui <= s.fin}
                 onReserver={nouvelle} onOuvrir={ouvrir} />
             ))}
           </div>
@@ -95,15 +95,15 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
           <div className="bg-white border rounded-xl overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr><th className="p-3">Dates</th><th className="p-3">Type</th><th className="p-3">Occupant</th><th className="p-3">Nuits</th><th className="p-3">Note</th></tr>
+                <tr><th className="p-3">Dates</th><th className="p-3">Type</th><th className="p-3">Occupant</th><th className="p-3">Jours</th><th className="p-3">Note</th></tr>
               </thead>
               <tbody className="divide-y">
                 {reservations.map((r) => (
                   <tr key={r.id} onClick={() => ouvrir(r)} className="cursor-pointer hover:bg-slate-50">
-                    <td className="p-3 whitespace-nowrap">{dateCourte(r.arrivee)} → {dateCourte(r.depart)}</td>
+                    <td className="p-3 whitespace-nowrap">{dateCourte(r.debut)} → {dateCourte(r.fin)}</td>
                     <td className="p-3">{LIBELLES_TYPE[r.type]}</td>
                     <td className="p-3"><span className={`px-2 py-0.5 rounded border ${couleurOccupant(r.occupant)}`}>{r.occupant}</span></td>
-                    <td className="p-3 tabular-nums">{nuits(r)}</td>
+                    <td className="p-3 tabular-nums">{jours(r)}</td>
                     <td className="p-3 text-slate-600">{r.note}</td>
                   </tr>
                 ))}
@@ -126,15 +126,16 @@ function CarteSemaine({ semaine, reservations, admin, passee, enCours, onReserve
   onReserver: (p: Periode, type: TypeReservation) => void; onOuvrir: (r: Reservation) => void;
 }) {
   const occupees = reservationsSur(semaine, reservations);
+  const toutLibre = occupees.length === 0;
+  const semaineLibre = reservationsSur(semaine.jours, reservations).length === 0;
   const weekEndLibre = reservationsSur(semaine.weekEnd, reservations).length === 0;
-  const semaineLibre = occupees.length === 0;
   const bouton = "flex-1 text-xs py-1.5 rounded border border-dashed border-slate-300 text-slate-600 hover:border-sky-500 hover:text-sky-800 hover:bg-sky-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-slate-300 disabled:hover:text-slate-600";
 
   return (
     <article className={`bg-white border rounded-xl p-3 space-y-2 ${enCours ? "ring-2 ring-sky-500" : ""} ${passee ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">{intervalle(semaine)}</h3>
-        {semaineLibre && <span className="text-xs text-emerald-700">Libre</span>}
+        {toutLibre && <span className="text-xs text-emerald-700">Libre</span>}
       </div>
       {occupees.length > 0 && (
         <ul className="space-y-1">
@@ -142,7 +143,7 @@ function CarteSemaine({ semaine, reservations, admin, passee, enCours, onReserve
             <li key={r.id}>
               <button type="button" onClick={() => onOuvrir(r)} className={`w-full text-left text-xs px-2 py-1.5 rounded border ${couleurOccupant(r.occupant)}`}>
                 <span className="font-semibold">{r.occupant}</span>
-                <span className="block opacity-80">{LIBELLES_TYPE[r.type]} · {dateCourte(r.arrivee)} → {dateCourte(r.depart)}</span>
+                <span className="block opacity-80">{LIBELLES_TYPE[r.type]} · {dateCourte(r.debut)} → {dateCourte(r.fin)}</span>
               </button>
             </li>
           ))}
@@ -150,13 +151,13 @@ function CarteSemaine({ semaine, reservations, admin, passee, enCours, onReserve
       )}
       {admin && !passee && (
         <div className="flex gap-2">
-          <button type="button" disabled={!semaineLibre} onClick={() => onReserver(semaine, "SEMAINE")} className={bouton}
-            title={semaineLibre ? "Réserver du samedi au samedi" : "Semaine déjà occupée"}>Semaine</button>
+          <button type="button" disabled={!semaineLibre} onClick={() => onReserver(semaine.jours, "SEMAINE")} className={bouton}
+            title={semaineLibre ? `Réserver ${dateCourte(semaine.jours.debut)} → ${dateCourte(semaine.jours.fin)}` : "Semaine déjà occupée"}>Semaine</button>
           <button type="button" disabled={!weekEndLibre} onClick={() => onReserver(semaine.weekEnd, "WEEK_END")} className={bouton}
-            title={weekEndLibre ? `Réserver ${dateCourte(semaine.weekEnd.arrivee)} → ${dateCourte(semaine.weekEnd.depart)}` : "Week-end déjà occupé"}>Week-end</button>
+            title={weekEndLibre ? `Réserver ${dateCourte(semaine.weekEnd.debut)} → ${dateCourte(semaine.weekEnd.fin)}` : "Week-end déjà occupé"}>Week-end</button>
         </div>
       )}
-      {!admin && semaineLibre && <p className="text-xs text-slate-400">Week-end {dateCourte(semaine.weekEnd.arrivee)} → {dateCourte(semaine.weekEnd.depart)}</p>}
+      
     </article>
   );
 }
