@@ -34,8 +34,10 @@ test("vérification des périodes (jours inclus)", () => {
   const existantes = [{ id: 1, debut: "2027-01-04", fin: "2027-01-08" }];
   // Le week-end qui suit est libre
   assert.equal(verifierPeriode({ debut: "2027-01-09", fin: "2027-01-10" }, existantes), null);
-  // Le vendredi est déjà pris
-  assert.match(verifierPeriode({ debut: "2027-01-08", fin: "2027-01-10" }, existantes)!, /chevauchent/);
+  // Jour de changement : arrivée le vendredi après-midi quand l'autre part le vendredi matin
+  assert.equal(verifierPeriode({ debut: "2027-01-08", fin: "2027-01-10" }, existantes), null);
+  // Mais pas de nuit partagée
+  assert.match(verifierPeriode({ debut: "2027-01-07", fin: "2027-01-10" }, existantes)!, /chevauchent/);
   assert.equal(verifierPeriode({ debut: "2027-01-05", fin: "2027-01-06" }, existantes, 1), null);
   // Une seule journée est acceptée, une fin avant le début non
   assert.equal(verifierPeriode({ debut: "2027-02-01", fin: "2027-02-01" }, []), null);
@@ -61,14 +63,14 @@ test("identifiant simple ou email", async () => {
 test("jours restés libres dans une semaine partiellement réservée", async () => {
   const { plagesLibres, plusLonguePlageLibre } = await import("./planning.ts");
   const semaine = { debut: "2027-01-25", fin: "2027-01-29" }; // lun. → ven.
-  // Réservation du sam. 23 au mar. 26 : il reste mer. 27 → ven. 29
+  // Réservation du sam. 23 au mar. 26 (départ mardi matin) : il reste mar. 26 → ven. 29
   const r = [{ debut: "2027-01-23", fin: "2027-01-26" }];
-  assert.deepEqual(plagesLibres(semaine, r), [{ debut: "2027-01-27", fin: "2027-01-29" }]);
-  assert.deepEqual(plusLonguePlageLibre(semaine, r), { debut: "2027-01-27", fin: "2027-01-29" });
-  // Trou au milieu : lun. et jeu.-ven. libres, la plus longue est jeu.-ven.
+  assert.deepEqual(plagesLibres(semaine, r), [{ debut: "2027-01-26", fin: "2027-01-29" }]);
+  assert.deepEqual(plusLonguePlageLibre(semaine, r), { debut: "2027-01-26", fin: "2027-01-29" });
+  // Une nuit prise au milieu (mar. → mer.) : lun. → mar. et mer. → ven. restent, la plus longue est mer. → ven.
   const r2 = [{ debut: "2027-01-26", fin: "2027-01-27" }];
-  assert.deepEqual(plagesLibres(semaine, r2), [{ debut: "2027-01-25", fin: "2027-01-25" }, { debut: "2027-01-28", fin: "2027-01-29" }]);
-  assert.deepEqual(plusLonguePlageLibre(semaine, r2), { debut: "2027-01-28", fin: "2027-01-29" });
+  assert.deepEqual(plagesLibres(semaine, r2), [{ debut: "2027-01-25", fin: "2027-01-26" }, { debut: "2027-01-27", fin: "2027-01-29" }]);
+  assert.deepEqual(plusLonguePlageLibre(semaine, r2), { debut: "2027-01-27", fin: "2027-01-29" });
   // Tout pris / rien de pris
   assert.equal(plusLonguePlageLibre(semaine, [{ debut: "2027-01-20", fin: "2027-02-05" }]), null);
   assert.deepEqual(plusLonguePlageLibre(semaine, []), semaine);
@@ -86,8 +88,10 @@ test("clic sur un jour : semaine ou week-end libre qui le contient", async () =>
   const resas = [{ debut: "2027-01-23", fin: "2027-01-26" }];
   assert.deepEqual(periodeAReserver("2027-01-13", resas), { periode: { debut: "2027-01-11", fin: "2027-01-15" }, type: "SEMAINE" });
   assert.deepEqual(periodeAReserver("2027-01-17", resas), { periode: { debut: "2027-01-16", fin: "2027-01-17" }, type: "WEEK_END" });
-  assert.deepEqual(periodeAReserver("2027-01-28", resas), { periode: { debut: "2027-01-27", fin: "2027-01-29" }, type: "AUTRE" });
+  assert.deepEqual(periodeAReserver("2027-01-28", resas), { periode: { debut: "2027-01-26", fin: "2027-01-29" }, type: "AUTRE" });
   assert.equal(periodeAReserver("2027-01-24", resas), null);
+  // Vendredi : arrivée l'après-midi pour le week-end (vendredi → dimanche)
+  assert.deepEqual(periodeAReserver("2027-01-15", resas), { periode: { debut: "2027-01-15", fin: "2027-01-17" }, type: "WEEK_END" });
   assert.equal(joursDuMois(2028, 1), 29);
 });
 
@@ -99,4 +103,15 @@ test("déplacer une réservation : décalage et type recalculé", async () => {
   assert.equal(typePour(decaler(semaine, 7)), "SEMAINE");
   assert.equal(typePour(decaler(semaine, 2)), "AUTRE");
   assert.equal(typePour({ debut: "2027-01-09", fin: "2027-01-10" }), "WEEK_END");
+});
+
+test("jour de changement : au plus deux réservations le même jour", async () => {
+  const { seGenent, nuitPrise } = await import("./planning.ts");
+  const semaine = { debut: "2027-01-04", fin: "2027-01-08" };
+  assert.equal(seGenent(semaine, { debut: "2027-01-08", fin: "2027-01-10" }), false); // départ ven. matin, arrivée ven. après-midi
+  assert.equal(seGenent(semaine, { debut: "2027-01-01", fin: "2027-01-04" }), false); // l'autre part lun. matin
+  assert.equal(seGenent(semaine, { debut: "2027-01-07", fin: "2027-01-07" }), true); // un jour en pleine semaine
+  assert.equal(seGenent({ debut: "2027-01-08", fin: "2027-01-08" }, { debut: "2027-01-08", fin: "2027-01-10" }), true);
+  assert.equal(nuitPrise("2027-01-07", [semaine]), true);
+  assert.equal(nuitPrise("2027-01-08", [semaine]), false);
 });

@@ -52,6 +52,16 @@ export function semainesDeLAnnee(annee: number): Semaine[] {
 
 export const seChevauchent = (a: Periode, b: Periode) => a.debut <= b.fin && b.debut <= a.fin;
 
+/**
+ * Jour de changement : on part le matin du dernier jour, le suivant peut arriver l'après-midi.
+ * Une réservation occupe donc les nuits de « debut » à la veille de « fin » (une réservation d'un seul jour occupe ce jour).
+ * Deux réservations se gênent si elles partagent une nuit ; au plus deux se croisent le même jour.
+ */
+export const finNuits = (p: Periode) => (p.fin > p.debut ? p.fin : ajouterJours(p.fin, 1));
+export const seGenent = (a: Periode, b: Periode) => a.debut < finNuits(b) && b.debut < finNuits(a);
+/** La nuit du jour est-elle prise ? */
+export const nuitPrise = (jour: string, reservations: Periode[]) => reservations.some((r) => r.debut <= jour && jour < finNuits(r));
+
 /** Réservations qui occupent au moins un jour de la période. */
 export const reservationsSur = <T extends Periode>(periode: Periode, reservations: T[]) =>
   reservations.filter((r) => seChevauchent(periode, r));
@@ -61,7 +71,7 @@ export function verifierPeriode(p: Periode, existantes: (Periode & { id?: number
   if (!p.debut || !p.fin) return "Indiquez le premier et le dernier jour.";
   if (p.fin < p.debut) return "Le dernier jour doit être après le premier.";
   if (jours(p) > 62) return "Une réservation ne peut pas dépasser 62 jours.";
-  if (existantes.some((r) => r.id !== idModifie && seChevauchent(p, r))) return "Ces dates chevauchent une autre réservation.";
+  if (existantes.some((r) => r.id !== idModifie && seGenent(p, r))) return "Ces dates chevauchent une autre réservation (seul le jour de départ peut être le jour d'arrivée suivant).";
   return null;
 }
 
@@ -93,14 +103,18 @@ export function couleurOccupant(occupant: string) {
   return COULEURS[h % COULEURS.length];
 }
 
-/** Plages de jours encore libres dans une période (dans l'ordre), ex. mer. → ven. si lun. → mar. est pris. */
+/**
+ * Plages encore réservables dans une période, d'après les nuits libres (dans l'ordre).
+ * Ex. lun. → ven. avec un séjour qui part le mardi matin : il reste mar. → ven.
+ */
 export function plagesLibres(periode: Periode, reservations: Periode[]): Periode[] {
   const plages: Periode[] = [];
   let debutLibre: string | null = null;
-  for (let jour = periode.debut; jour <= periode.fin; jour = ajouterJours(jour, 1)) {
-    const pris = reservations.some((r) => r.debut <= jour && jour <= r.fin);
+  const derniereNuit = ajouterJours(finNuits(periode), -1);
+  for (let jour = periode.debut; jour <= derniereNuit; jour = ajouterJours(jour, 1)) {
+    const pris = nuitPrise(jour, reservations);
     if (!pris && debutLibre === null) debutLibre = jour;
-    if (pris && debutLibre !== null) { plages.push({ debut: debutLibre, fin: ajouterJours(jour, -1) }); debutLibre = null; }
+    if (pris && debutLibre !== null) { plages.push({ debut: debutLibre, fin: jour }); debutLibre = null; }
   }
   if (debutLibre !== null) plages.push({ debut: debutLibre, fin: periode.fin });
   return plages;
@@ -128,11 +142,15 @@ export const estWeekEnd = (iso: string) => [0, 6].includes(versDate(iso).getUTCD
 export function periodeAReserver(jour: string, reservations: Periode[]): { periode: Periode; type: TypeReservation } | null {
   const j = versDate(jour).getUTCDay(); // 0 = dimanche
   const lundi = ajouterJours(jour, -((j + 6) % 7));
-  const base = estWeekEnd(jour) ? { debut: ajouterJours(lundi, 5), fin: ajouterJours(lundi, 6) } : { debut: lundi, fin: ajouterJours(lundi, 4) };
-  const plage = plagesLibres(base, reservations).find((p) => p.debut <= jour && jour <= p.fin);
+  // Le vendredi, on propose le week-end avec arrivée l'après-midi (vendredi → dimanche)
+  const base = estWeekEnd(jour) ? { debut: ajouterJours(lundi, 5), fin: ajouterJours(lundi, 6) }
+    : j === 5 ? { debut: jour, fin: ajouterJours(lundi, 6) }
+    : { debut: lundi, fin: ajouterJours(lundi, 4) };
+  const plage = plagesLibres(base, reservations).find((p) => p.debut <= jour && jour < p.fin)
+    ?? plagesLibres(base, reservations).find((p) => p.debut <= jour && jour <= p.fin);
   if (!plage) return null;
   const complet = plage.debut === base.debut && plage.fin === base.fin;
-  return { periode: plage, type: complet ? (estWeekEnd(jour) ? "WEEK_END" : "SEMAINE") : "AUTRE" };
+  return { periode: plage, type: complet ? (estWeekEnd(jour) || j === 5 ? "WEEK_END" : "SEMAINE") : "AUTRE" };
 }
 
 /** Écart en jours entre deux dates (b − a). */
@@ -141,10 +159,10 @@ export const ecartJours = (a: string, b: string) => Math.round((versDate(b).getT
 /** Décale une période de n jours en gardant sa durée. */
 export const decaler = (p: Periode, n: number): Periode => ({ debut: ajouterJours(p.debut, n), fin: ajouterJours(p.fin, n) });
 
-/** Type déduit des dates : lundi → vendredi = semaine, samedi → dimanche = week-end, sinon séjour. */
+/** Type déduit des dates : lundi → vendredi = semaine, samedi (ou vendredi) → dimanche = week-end, sinon séjour. */
 export function typePour(p: Periode): TypeReservation {
   const d = versDate(p.debut).getUTCDay();
   if (d === 1 && ecartJours(p.debut, p.fin) === 4) return "SEMAINE";
-  if (d === 6 && ecartJours(p.debut, p.fin) === 1) return "WEEK_END";
+  if ((d === 6 && ecartJours(p.debut, p.fin) === 1) || (d === 5 && ecartJours(p.debut, p.fin) === 2)) return "WEEK_END";
   return "AUTRE";
 }

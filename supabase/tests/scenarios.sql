@@ -22,7 +22,7 @@ DO $$ BEGIN
   IF (SELECT cree_par FROM reservations WHERE occupant = 'Paul') <> auth.uid() THEN RAISE EXCEPTION 'cree_par non renseigné'; END IF;
   -- Chevauchement refusé
   BEGIN
-    INSERT INTO reservations (debut, fin, occupant) VALUES ('2027-01-08','2027-01-08','Intrus');
+    INSERT INTO reservations (debut, fin, occupant) VALUES ('2027-01-07','2027-01-08','Intrus');
     RAISE EXCEPTION 'chevauchement accepté';
   EXCEPTION WHEN exclusion_violation THEN NULL; END;
   -- Dates incohérentes refusées
@@ -211,6 +211,22 @@ SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a'
 DO $$ BEGIN
   DELETE FROM reservations WHERE occupant = 'Famille Durand';
   IF EXISTS (SELECT 1 FROM paiements) THEN RAISE EXCEPTION 'paiement orphelin'; END IF;
+END $$;
+
+-- Jour de changement : départ le matin, arrivée l'après-midi ; jamais de nuit partagée
+DO $$ BEGIN
+  INSERT INTO reservations (debut, fin, type, occupant) VALUES ('2028-03-06','2028-03-10','SEMAINE','Semaine A');
+  INSERT INTO reservations (debut, fin, type, occupant) VALUES ('2028-03-10','2028-03-12','AUTRE','Arrivée vendredi');
+  INSERT INTO reservations (debut, fin, type, occupant) VALUES ('2028-03-01','2028-03-06','AUTRE','Départ lundi');
+  BEGIN
+    INSERT INTO reservations (debut, fin, occupant) VALUES ('2028-03-10','2028-03-10','Troisième le vendredi');
+    RAISE EXCEPTION 'trois réservations le même jour';
+  EXCEPTION WHEN exclusion_violation THEN NULL; END;
+  BEGIN
+    INSERT INTO reservations (debut, fin, occupant) VALUES ('2028-03-09','2028-03-11','Nuit partagée');
+    RAISE EXCEPTION 'nuit partagée acceptée';
+  EXCEPTION WHEN exclusion_violation THEN NULL; END;
+  DELETE FROM reservations WHERE debut >= '2028-03-01' AND debut < '2028-04-01';
 END $$;
 
 \echo 'TOUS LES SCÉNARIOS PASSENT'
