@@ -80,3 +80,13 @@ test("nuits : arrivée le premier jour, départ le dernier", async () => {
   assert.equal(nuits({ debut: "2027-01-09", fin: "2027-01-10" }), 1);
   assert.equal(nuits({ debut: "2027-01-09", fin: "2027-01-09" }), 0);
 });
+
+test("clic sur un jour : semaine ou week-end libre qui le contient", async () => {
+  const { periodeAReserver, joursDuMois } = await import("./planning.ts");
+  const resas = [{ debut: "2027-01-23", fin: "2027-01-26" }];
+  assert.deepEqual(periodeAReserver("2027-01-13", resas), { periode: { debut: "2027-01-11", fin: "2027-01-15" }, type: "SEMAINE" });
+  assert.deepEqual(periodeAReserver("2027-01-17", resas), { periode: { debut: "2027-01-16", fin: "2027-01-17" }, type: "WEEK_END" });
+  assert.deepEqual(periodeAReserver("2027-01-28", resas), { periode: { debut: "2027-01-27", fin: "2027-01-29" }, type: "AUTRE" });
+  assert.equal(periodeAReserver("2027-01-24", resas), null);
+  assert.equal(joursDuMois(2028, 1), 29);
+});

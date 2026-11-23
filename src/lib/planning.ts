@@ -70,6 +70,7 @@ const MOIS_COURTS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", 
 const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 
 export const nomMois = (m: number) => MOIS[m];
+export const nomMoisCourt = (m: number) => MOIS_COURTS[m];
 /** « lun. 4 janv. » */
 export const dateCourte = (iso: string) => {
   const d = versDate(iso);
@@ -108,3 +109,28 @@ export function plagesLibres(periode: Periode, reservations: Periode[]): Periode
 /** La plus longue plage libre (la première en cas d'égalité), ou null si tout est pris. */
 export const plusLonguePlageLibre = (periode: Periode, reservations: Periode[]) =>
   plagesLibres(periode, reservations).reduce<Periode | null>((meilleure, p) => (!meilleure || jours(p) > jours(meilleure) ? p : meilleure), null);
+
+/** Couleur pleine par occupant pour les barres du planning (même répartition que couleurOccupant). */
+const BARRES = ["bg-sky-600", "bg-emerald-600", "bg-rose-500", "bg-violet-600", "bg-teal-600", "bg-orange-500", "bg-indigo-600", "bg-fuchsia-600"];
+export function couleurBarre(occupant: string) {
+  let h = 0;
+  for (const c of occupant.trim().toLowerCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return BARRES[h % BARRES.length];
+}
+
+export const joursDuMois = (annee: number, mois: number) => new Date(Date.UTC(annee, mois + 1, 0)).getUTCDate();
+export const estWeekEnd = (iso: string) => [0, 6].includes(versDate(iso).getUTCDay());
+
+/**
+ * Clic sur un jour libre : propose la partie libre de sa semaine (lundi → vendredi)
+ * ou de son week-end (samedi → dimanche) qui contient ce jour.
+ */
+export function periodeAReserver(jour: string, reservations: Periode[]): { periode: Periode; type: TypeReservation } | null {
+  const j = versDate(jour).getUTCDay(); // 0 = dimanche
+  const lundi = ajouterJours(jour, -((j + 6) % 7));
+  const base = estWeekEnd(jour) ? { debut: ajouterJours(lundi, 5), fin: ajouterJours(lundi, 6) } : { debut: lundi, fin: ajouterJours(lundi, 4) };
+  const plage = plagesLibres(base, reservations).find((p) => p.debut <= jour && jour <= p.fin);
+  if (!plage) return null;
+  const complet = plage.debut === base.debut && plage.fin === base.fin;
+  return { periode: plage, type: complet ? (estWeekEnd(jour) ? "WEEK_END" : "SEMAINE") : "AUTRE" };
+}

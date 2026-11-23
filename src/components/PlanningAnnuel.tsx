@@ -4,26 +4,27 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  couleurOccupant, dateCourte, intervalle, jours, nomMois, plusLonguePlageLibre, reservationsSur, semainesDeLAnnee, versIso,
-  type Periode, type Semaine, type TypeReservation,
+  couleurBarre, dateCourte, estWeekEnd, jours, joursDuMois, nomMois, nomMoisCourt, periodeAReserver, semainesDeLAnnee, versDate, versIso,
+  type Periode, type TypeReservation,
 } from "@/lib/planning";
-import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
+import { messageErreur, type Reservation } from "@/lib/types";
 import { vacancesSur, type Vacances } from "@/lib/vacances";
 import ChoixAnnee from "@/components/ChoixAnnee";
 import FicheReservation, { type Brouillon } from "@/components/FicheReservation";
 
-/** Vue annuelle : semaines du lundi au dimanche regroupées par mois ; semaine lundi → vendredi, week-end samedi → dimanche. */
+/** Vue annuelle synthétique : une ligne par mois avec tous ses jours ; semaine lundi → vendredi, week-end samedi → dimanche. */
 export default function PlanningAnnuel({ annee, admin, vacances }: { annee: number; admin: boolean; vacances: Vacances[] }) {
   const supabase = useMemo(() => createClient(), []);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [occupantsConnus, setOccupantsConnus] = useState<string[]>([]);
   const [erreur, setErreur] = useState("");
   const [fiche, setFiche] = useState<Brouillon | null>(null);
-  const [moisOuverts, setMoisOuverts] = useState<Set<number>>(new Set());
-  const basculerMois = (m: number) => setMoisOuverts((o) => { const n = new Set(o); if (n.has(m)) n.delete(m); else n.add(m); return n; });
-
-  const semaines = useMemo(() => semainesDeLAnnee(annee), [annee]);
+  const [passesVisibles, setPassesVisibles] = useState(false);
   const aujourdhui = versIso(new Date());
+  // Mois entièrement passés : repliés par défaut
+  const nbPasses = Array.from({ length: 12 }, (_, m) => `${annee}-${String(m + 1).padStart(2, "0")}-${String(joursDuMois(annee, m)).padStart(2, "0")}`)
+    .filter((fin) => fin < aujourdhui).length;
+  const moisAffiches = Array.from({ length: 12 }, (_, m) => m).filter((m) => passesVisibles || m >= nbPasses);
 
   const charger = useCallback(async () => {
     const debut = `${annee}-01-01`;
@@ -47,16 +48,6 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
   const nouvelle = (p: Periode, type: TypeReservation) => setFiche({ debut: p.debut, fin: p.fin, type, occupant: "", note: "" });
   const ouvrir = (r: Reservation) => setFiche({ ...r });
 
-  const parMois = useMemo(() => {
-    const groupes: { mois: number; semaines: Semaine[] }[] = [];
-    semaines.forEach((s) => {
-      const dernier = groupes.at(-1);
-      if (dernier?.mois === s.mois) dernier.semaines.push(s);
-      else groupes.push({ mois: s.mois, semaines: [s] });
-    });
-    return groupes;
-  }, [semaines]);
-
   const totalJours = reservations.reduce((t, r) => t + jours(r), 0);
 
   return (
@@ -72,50 +63,18 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
           </button>
         )}
       </div>
-      <p className="hidden sm:block text-sm text-slate-500">
-        Semaine du lundi au vendredi, week-end le samedi et le dimanche.
-        {admin ? " Cliquez sur une semaine ou un week-end libre pour le réserver, ou sur une réservation pour la modifier." : " Lecture seule : seuls les administrateurs réservent."}
-      </p>
-      {vacances.length > 0 && (
-        <p className="flex items-center gap-2 text-xs text-slate-500">
-          <span className="inline-block w-4 h-3 rounded-sm bg-amber-50 border border-amber-300" /> Vacances scolaires zone A (académie de Lyon)
-        </p>
-      )}
+      <Legende admin={admin} vacances={vacances.length > 0} />
       {erreur && <p className="text-sm text-red-600">{erreur}</p>}
 
-      <div className="space-y-3">
-        {parMois.map(({ mois, semaines }) => {
-          const passe = semaines.at(-1)!.fin < aujourdhui;
-          const ouvert = !passe || moisOuverts.has(mois);
-          const nbResas = new Set(semaines.flatMap((s) => reservationsSur(s, reservations).map((r) => r.id))).size;
-          return (
-            <section key={mois} className={`${passe && !ouvert ? "flex items-baseline gap-3" : "grid gap-2 md:gap-3"} md:grid md:grid-cols-[8rem_1fr] ${passe ? "" : "border-t pt-3"}`}>
-              <h2 className="md:pt-3 shrink-0">
-                {passe ? (
-                  <button type="button" onClick={() => basculerMois(mois)} aria-expanded={ouvert}
-                    className="flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-700">
-                    {ouvert ? <ChevronDown size={16} /> : <ChevronRight size={16} />} {nomMois(mois)}
-                  </button>
-                ) : <span className="text-sm font-semibold uppercase tracking-wide text-sky-800">{nomMois(mois)}</span>}
-              </h2>
-              {ouvert ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {semaines.map((s) => (
-                    <CarteSemaine key={s.debut} semaine={s} reservations={reservations} vacances={vacances} admin={admin}
-                      passee={s.fin < aujourdhui} enCours={s.debut <= aujourdhui && aujourdhui <= s.fin}
-                      onReserver={nouvelle} onOuvrir={ouvrir} />
-                  ))}
-                </div>
-              ) : (
-                <button type="button" onClick={() => basculerMois(mois)}
-                  className="text-left text-sm text-slate-400 md:pt-3 hover:text-slate-700">
-                  <span className="hidden sm:inline">Mois passé · </span>{nbResas === 0 ? "aucune réservation" : `${nbResas} réservation${nbResas > 1 ? "s" : ""}`} · afficher
-                </button>
-              )}
-            </section>
-          );
-        })}
-      </div>
+      {nbPasses > 0 && (
+        <button type="button" onClick={() => setPassesVisibles((v) => !v)} aria-expanded={passesVisibles}
+          className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+          {passesVisibles ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          {passesVisibles ? "Masquer" : "Afficher"} {nbPasses === 1 ? "le mois passé" : `les ${nbPasses} mois passés`}
+        </button>
+      )}
+      <GrilleAnnee annee={annee} mois={moisAffiches} reservations={reservations} vacances={vacances} aujourdhui={aujourdhui}
+        admin={admin} onReserver={nouvelle} onOuvrir={ouvrir} />
 
       {fiche && (
         <FicheReservation brouillon={fiche} admin={admin} reservations={reservations} occupantsConnus={occupantsConnus}
@@ -125,63 +84,90 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
   );
 }
 
-function CarteSemaine({ semaine, reservations, vacances, admin, passee, enCours, onReserver, onOuvrir }: {
-  semaine: Semaine; reservations: Reservation[]; vacances: Vacances[]; admin: boolean; passee: boolean; enCours: boolean;
+const JOURS_LETTRES = ["D", "L", "M", "M", "J", "V", "S"];
+const iso = (annee: number, mois: number, jour: number) => `${annee}-${String(mois + 1).padStart(2, "0")}-${String(jour).padStart(2, "0")}`;
+
+/**
+ * Vue synthétique : une ligne par mois, une colonne par jour (1 → 31).
+ * Week-ends sur fond gris, vacances scolaires soulignées en ambre, réservations en barres de couleur avec le nom.
+ */
+function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, onReserver, onOuvrir }: {
+  annee: number; mois: number[]; reservations: Reservation[]; vacances: Vacances[]; aujourdhui: string; admin: boolean;
   onReserver: (p: Periode, type: TypeReservation) => void; onOuvrir: (r: Reservation) => void;
 }) {
-  const occupees = reservationsSur(semaine, reservations);
-  const toutLibre = occupees.length === 0;
-  // Vacances scolaires zone A (Lyon) qui tombent sur les jours de semaine
-  const conge = vacancesSur(semaine.jours, vacances)[0];
-  // Jours restés libres : une réservation à cheval sur deux semaines n'empêche pas de réserver le reste
-  const resteSemaine = plusLonguePlageLibre(semaine.jours, reservations);
-  const resteWeekEnd = plusLonguePlageLibre(semaine.weekEnd, reservations);
-  const bouton = "flex-1 text-xs py-1.5 rounded border border-dashed border-slate-300 text-slate-600 hover:border-sky-500 hover:text-sky-800 hover:bg-sky-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-slate-300 disabled:hover:text-slate-600";
-
+  const colonnes = { gridTemplateColumns: "repeat(31, minmax(0, 1fr))" };
   return (
-    <article title={conge ? `${conge.libelle} (zone A, Lyon) : ${dateCourte(conge.debut)} → ${dateCourte(conge.fin)}` : undefined}
-      className={`border rounded-xl p-3 space-y-2 ${conge ? "bg-amber-50 border-amber-200" : "bg-white"} ${enCours ? "ring-2 ring-sky-500" : ""} ${passee ? "opacity-60" : ""}`}>
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold">{intervalle(semaine)}</h3>
-        {toutLibre && <span className="text-xs text-emerald-700">Libre</span>}
-      </div>
-      {conge && <p className="text-xs text-amber-800 -mt-1">{conge.libelle}</p>}
-      {occupees.length > 0 && (
-        <ul className="space-y-1">
-          {occupees.map((r) => (
-            <li key={r.id}>
-              <button type="button" onClick={() => onOuvrir(r)} className={`w-full text-left text-xs px-2 py-1.5 rounded border ${couleurOccupant(r.occupant)}`}>
-                <span className="font-semibold">{r.occupant}</span>
-                <span className="block opacity-80">{LIBELLES_TYPE[r.type]} · {dateCourte(r.debut)} → {dateCourte(r.fin)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {admin && !passee && (
-        <div className="flex gap-2">
-          <BoutonReserver periode={semaine.jours} reste={resteSemaine} libelle="Semaine" type="SEMAINE" occupe="Semaine déjà occupée" className={bouton} onReserver={onReserver} />
-          <BoutonReserver periode={semaine.weekEnd} reste={resteWeekEnd} libelle="Week-end" type="WEEK_END" occupe="Week-end déjà occupé" className={bouton} onReserver={onReserver} />
+    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="min-w-[820px] md:min-w-[900px] bg-white border rounded-xl overflow-hidden">
+        <div className="flex border-b bg-slate-50 text-[11px] text-slate-500 tabular-nums">
+          <div className="sticky left-0 z-20 w-16 md:w-24 shrink-0 bg-slate-50" />
+          <div className="grid flex-1" style={colonnes}>
+            {Array.from({ length: 31 }, (_, i) => <div key={i} className="py-1 text-center">{i + 1}</div>)}
+          </div>
         </div>
-      )}
-      
-    </article>
+        {mois.map((m) => {
+          const nb = joursDuMois(annee, m);
+          const debutMois = iso(annee, m, 1), finMois = iso(annee, m, nb);
+          const passe = finMois < aujourdhui;
+          const barres = reservations.filter((r) => r.debut <= finMois && r.fin >= debutMois);
+          return (
+            <div key={m} className={`flex border-b last:border-b-0 ${passe ? "opacity-60" : ""}`}>
+              <div className="sticky left-0 z-20 w-16 md:w-24 shrink-0 bg-white border-r px-2 flex items-center text-xs font-semibold uppercase tracking-wide text-sky-800">
+                <span className="md:hidden">{nomMoisCourt(m)}</span><span className="hidden md:inline">{nomMois(m)}</span>
+              </div>
+              <div className="grid flex-1 relative h-12" style={colonnes}>
+                {Array.from({ length: 31 }, (_, i) => {
+                  const jour = i + 1;
+                  if (jour > nb) return <div key={i} style={{ gridColumn: jour, gridRow: 1, backgroundImage: "repeating-linear-gradient(135deg, #f1f5f9 0 4px, #fff 4px 8px)" }} />;
+                  const date = iso(annee, m, jour);
+                  const we = estWeekEnd(date);
+                  const conge = vacancesSur({ debut: date, fin: date }, vacances)[0];
+                  const libre = !reservations.some((r) => r.debut <= date && date <= r.fin);
+                  const cliquable = admin && libre && date >= aujourdhui;
+                  const classe = `relative border-r last:border-r-0 border-slate-100 flex flex-col items-center pt-0.5 text-[10px] ${we ? "bg-slate-200/70 text-slate-600 font-medium" : "text-slate-400"} ${date === aujourdhui ? "ring-2 ring-inset ring-sky-500" : ""}`;
+                  const contenu = (
+                    <>
+                      {JOURS_LETTRES[versDate(date).getUTCDay()]}
+                      {conge && <span className="absolute inset-x-0 bottom-0 h-1 bg-amber-400" />}
+                    </>
+                  );
+                  const titre = `${dateCourte(date)}${conge ? ` · ${conge.libelle}` : ""}`;
+                  return cliquable ? (
+                    <button key={i} type="button" style={{ gridColumn: jour, gridRow: 1 }} title={`${titre} · réserver`}
+                      onClick={() => { const p = periodeAReserver(date, reservations); if (p) onReserver(p.periode, p.type); }}
+                      className={`${classe} hover:bg-sky-100`}>{contenu}</button>
+                  ) : <div key={i} style={{ gridColumn: jour, gridRow: 1 }} title={titre} className={classe}>{contenu}</div>;
+                })}
+                {barres.map((r) => {
+                  const d = r.debut < debutMois ? debutMois : r.debut;
+                  const f = r.fin > finMois ? finMois : r.fin;
+                  const de = versDate(d).getUTCDate(), a = versDate(f).getUTCDate();
+                  const arrondi = `${r.debut >= debutMois ? "rounded-l-md ml-0.5" : ""} ${r.fin <= finMois ? "rounded-r-md mr-0.5" : ""}`;
+                  return (
+                    <button key={r.id} type="button" onClick={() => onOuvrir(r)}
+                      title={`${r.occupant} · ${dateCourte(r.debut)} → ${dateCourte(r.fin)}${r.note ? ` · ${r.note}` : ""}`}
+                      style={{ gridColumn: `${de} / ${a + 1}`, gridRow: 1 }}
+                      className={`z-10 self-end mb-1.5 h-6 px-1.5 text-left text-[11px] font-semibold leading-6 text-white truncate shadow-sm hover:brightness-110 ${couleurBarre(r.occupant)} ${arrondi}`}>
+                      {r.occupant}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
-/** « Semaine » / « Week-end » si tout est libre ; sinon propose les jours restants (« mer. 27 → ven. 29 »). */
-function BoutonReserver({ periode, reste, libelle, type, occupe, className, onReserver }: {
-  periode: Periode; reste: Periode | null; libelle: string; type: TypeReservation; occupe: string; className: string;
-  onReserver: (p: Periode, type: TypeReservation) => void;
-}) {
-  const complet = reste && reste.debut === periode.debut && reste.fin === periode.fin;
-  const court = (iso: string) => dateCourte(iso).split(" ").slice(0, 2).join(" ");
-  const texte = !reste || complet ? libelle : reste.debut === reste.fin ? court(reste.debut) : `${court(reste.debut)} → ${court(reste.fin)}`;
+function Legende({ admin, vacances }: { admin: boolean; vacances: boolean }) {
   return (
-    <button type="button" disabled={!reste} className={className}
-      onClick={() => reste && onReserver(reste, complet ? type : "AUTRE")}
-      title={reste ? `Réserver ${dateCourte(reste.debut)} → ${dateCourte(reste.fin)}` : occupe}>
-      {texte}
-    </button>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+      <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded-sm bg-slate-200/70 border border-slate-300" /> Samedi et dimanche</span>
+      {vacances && <span className="flex items-center gap-1.5"><span className="w-4 h-1 bg-amber-400" /> Vacances scolaires zone A (Lyon)</span>}
+      <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded-sm ring-2 ring-inset ring-sky-500" /> Aujourd&apos;hui</span>
+      <span>{admin ? "Cliquez sur un jour libre pour réserver sa semaine ou son week-end, ou sur une barre pour la modifier." : "Lecture seule : seuls les administrateurs réservent."}</span>
+    </div>
   );
 }

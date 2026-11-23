@@ -33,7 +33,9 @@ export default function Recapitulatif({ annee }: { annee: number }) {
     const { data, error } = await supabase.from("reservations")
       .select("id, debut, fin, occupant, paiements(montant, paye)")
       .gte("debut", `${annee}-01-01`).lte("debut", `${annee}-12-31`).order("debut");
-    setErreur(error ? messageErreur(error) : "");
+    // Tant que la mise à jour de la base n'est pas faite, la table des paiements n'existe pas
+    const baseAncienne = error && (error.code === "PGRST200" || error.code === "42P01" || /paiements/.test(error.message));
+    setErreur(baseAncienne ? "La base de données doit d'abord être mise à jour pour afficher le récapitulatif." : error ? messageErreur(error) : "");
     setLignes(((data ?? []) as (Omit<Ligne, "montant" | "paye"> & { paiements: Paiement | Paiement[] | null })[]).map(({ paiements, ...r }) => {
       const p = Array.isArray(paiements) ? paiements[0] : paiements;
       return { ...r, montant: p?.montant === null || p?.montant === undefined ? null : Number(p.montant), paye: p?.paye ?? false };
