@@ -186,4 +186,31 @@ DO $$ BEGIN
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Le propriétaire%' THEN RAISE; END IF; END;
 END $$;
 
+-- Récapitulatif : montant et paiement, réservés aux administrateurs et tracés au journal
+DO $$ DECLARE v BIGINT; BEGIN
+  INSERT INTO reservations (debut, fin, type, occupant) VALUES ('2027-07-05','2027-07-09','SEMAINE','Famille Durand') RETURNING id INTO v;
+  INSERT INTO paiements (reservation_id, montant) VALUES (v, 450) ON CONFLICT (reservation_id) DO UPDATE SET montant = EXCLUDED.montant;
+  INSERT INTO paiements (reservation_id, paye) VALUES (v, true) ON CONFLICT (reservation_id) DO UPDATE SET paye = EXCLUDED.paye;
+  IF NOT EXISTS (SELECT 1 FROM paiements WHERE reservation_id = v AND montant = 450 AND paye) THEN RAISE EXCEPTION 'paiement non enregistré'; END IF;
+  IF (SELECT count(*) FROM journal WHERE objet = 'RESERVATION' AND objet_id = v::TEXT AND action = 'MODIFICATION') <> 2 THEN RAISE EXCEPTION 'paiement mal journalisé'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet_id = v::TEXT AND avant->>'montant' IS NULL AND (apres->>'montant')::NUMERIC = 450 AND apres->>'occupant' = 'Famille Durand') THEN RAISE EXCEPTION 'montant non journalisé'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet_id = v::TEXT AND avant->>'paye' = 'false' AND apres->>'paye' = 'true') THEN RAISE EXCEPTION 'paiement non journalisé'; END IF;
+  BEGIN INSERT INTO paiements (reservation_id, montant) VALUES (v, -5) ON CONFLICT (reservation_id) DO UPDATE SET montant = EXCLUDED.montant; RAISE EXCEPTION 'montant négatif accepté';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+END $$;
+SELECT set_config('request.jwt.claim.sub', (SELECT id::TEXT FROM membres WHERE email = 'second@longchamps.local'), false);
+DO $$ DECLARE n INT; BEGIN
+  IF (SELECT count(*) FROM reservations WHERE occupant = 'Famille Durand') <> 1 THEN RAISE EXCEPTION 'lecteur ne voit pas la réservation'; END IF;
+  IF (SELECT count(*) FROM paiements) <> 0 THEN RAISE EXCEPTION 'lecteur voit les montants'; END IF;
+  UPDATE paiements SET paye = false; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'lecteur a modifié un paiement'; END IF;
+  BEGIN INSERT INTO paiements (reservation_id, montant) SELECT id, 1 FROM reservations WHERE occupant = 'Famille Durand'; RAISE EXCEPTION 'lecteur a saisi un montant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
+DO $$ BEGIN
+  DELETE FROM reservations WHERE occupant = 'Famille Durand';
+  IF EXISTS (SELECT 1 FROM paiements) THEN RAISE EXCEPTION 'paiement orphelin'; END IF;
+END $$;
+
 \echo 'TOUS LES SCÉNARIOS PASSENT'

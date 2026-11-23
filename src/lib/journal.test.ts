@@ -29,3 +29,11 @@ test("changement de mot de passe", () => {
   const d = decrire({ ...base, action: "MODIFICATION", objet: "MEMBRE", avant: m, apres: { ...m, mot_de_passe: "modifié" } } as EntreeJournal);
   assert.deepEqual(d.detail, ["mot de passe changé"]);
 });
+
+test("montant et paiement d'une réservation", () => {
+  const avant = { ...resa, montant: null, paye: false };
+  const e = decrire({ ...base, action: "MODIFICATION", objet: "RESERVATION", avant, apres: { ...avant, montant: 450.5, paye: true } } as EntreeJournal);
+  assert.equal(e.detail.length, 2);
+  assert.match(e.detail[0], /^montant à payer : — → 450,50\s€$/);
+  assert.equal(e.detail[1], "payé : non → oui");
+});

@@ -27,6 +27,9 @@ export const versDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
 export const versIso = (d: Date) => d.toISOString().slice(0, 10);
 export const ajouterJours = (iso: string, n: number) => versIso(new Date(versDate(iso).getTime() + n * JOUR));
 /** Nombre de jours occupés, bornes incluses. */
+/** Nuits passées : arrivée le premier jour, départ le dernier jour. */
+export const nuits = (p: Periode) => Math.max(0, jours(p) - 1);
+
 export const jours = (p: Periode) => Math.round((versDate(p.fin).getTime() - versDate(p.debut).getTime()) / JOUR) + 1;
 
 /** Les semaines du lundi au dimanche dont le lundi tombe dans l'année. */

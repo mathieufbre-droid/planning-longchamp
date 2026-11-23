@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -10,10 +9,8 @@ import {
 } from "@/lib/planning";
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
 import { vacancesSur, type Vacances } from "@/lib/vacances";
+import ChoixAnnee from "@/components/ChoixAnnee";
 import FicheReservation, { type Brouillon } from "@/components/FicheReservation";
-
-/** Années proposées en carrés cliquables. */
-const ANNEES = [2026, 2027, 2028, 2029, 2030];
 
 /** Vue annuelle : semaines du lundi au dimanche regroupées par mois ; semaine lundi → vendredi, week-end samedi → dimanche. */
 export default function PlanningAnnuel({ annee, admin, vacances }: { annee: number; admin: boolean; vacances: Vacances[] }) {
@@ -27,7 +24,6 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
 
   const semaines = useMemo(() => semainesDeLAnnee(annee), [annee]);
   const aujourdhui = versIso(new Date());
-  const anneeCourante = new Date().getFullYear();
 
   const charger = useCallback(async () => {
     const debut = `${annee}-01-01`;
@@ -65,16 +61,7 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
 
   return (
     <main className="max-w-6xl mx-auto p-4 pb-24 md:p-8 space-y-5">
-      <nav aria-label="Choisir l'année" className="grid grid-cols-5 gap-2 sm:flex sm:flex-wrap">
-        {ANNEES.map((a) => (
-          <Link key={a} href={`/?annee=${a}`} aria-current={a === annee ? "page" : undefined}
-            className={`aspect-square sm:w-24 sm:h-24 rounded-xl border-2 flex flex-col items-center justify-center font-bold text-base sm:text-xl tabular-nums transition-colors ${
-              a === annee ? "bg-sky-700 border-sky-700 text-white shadow" : "bg-white border-slate-200 text-slate-700 hover:border-sky-500 hover:text-sky-800"}`}>
-            {a}
-            {a === anneeCourante && <span className={`text-[9px] sm:text-[10px] font-medium uppercase tracking-wide ${a === annee ? "text-sky-100" : "text-sky-700"}`}><span className="sm:hidden">actuelle</span><span className="hidden sm:inline">cette année</span></span>}
-          </Link>
-        ))}
-      </nav>
+      <ChoixAnnee annee={annee} chemin="/" />
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl sm:text-2xl font-bold tabular-nums">Planning {annee}</h1>
         <p className="text-sm text-slate-500">{reservations.length} réservation{reservations.length > 1 ? "s" : ""} · {totalJours} jour{totalJours > 1 ? "s" : ""}</p>

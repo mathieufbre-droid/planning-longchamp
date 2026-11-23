@@ -73,3 +73,10 @@ test("jours restés libres dans une semaine partiellement réservée", async () 
   assert.equal(plusLonguePlageLibre(semaine, [{ debut: "2027-01-20", fin: "2027-02-05" }]), null);
   assert.deepEqual(plusLonguePlageLibre(semaine, []), semaine);
 });
+
+test("nuits : arrivée le premier jour, départ le dernier", async () => {
+  const { nuits } = await import("./planning.ts");
+  assert.equal(nuits({ debut: "2027-01-04", fin: "2027-01-08" }), 4);
+  assert.equal(nuits({ debut: "2027-01-09", fin: "2027-01-10" }), 1);
+  assert.equal(nuits({ debut: "2027-01-09", fin: "2027-01-09" }), 0);
+});

@@ -20,6 +20,7 @@ const TYPES: Record<string, string> = { SEMAINE: "semaine", WEEK_END: "week-end"
 const ROLES: Record<string, string> = { ADMINISTRATEUR: "administrateur", LECTEUR: "lecteur" };
 const txt = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
 const annee = (iso: unknown) => String(iso).slice(0, 4);
+const euros = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : `${Number(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
 
 const resumeReservation = (r: Record<string, unknown>) =>
   `${txt(r.occupant)}, ${dateCourte(String(r.debut))} → ${dateCourte(String(r.fin))} ${annee(r.fin)} (${TYPES[String(r.type)] ?? txt(r.type)})`;
@@ -34,7 +35,8 @@ function differences(e: EntreeJournal): string[] {
   const a = e.avant ?? {}, b = e.apres ?? {};
   const champs: [string, string, (v: unknown) => string][] = e.objet === "RESERVATION"
     ? [["occupant", "occupant", txt], ["debut", "premier jour", (v) => `${dateCourte(String(v))} ${annee(v)}`],
-       ["fin", "dernier jour", (v) => `${dateCourte(String(v))} ${annee(v)}`], ["type", "type", (v) => TYPES[String(v)] ?? txt(v)], ["note", "note", txt]]
+       ["fin", "dernier jour", (v) => `${dateCourte(String(v))} ${annee(v)}`], ["type", "type", (v) => TYPES[String(v)] ?? txt(v)], ["note", "note", txt],
+       ["montant", "montant à payer", euros], ["paye", "payé", (v) => (v ? "oui" : "non")]]
     : [["prenom", "prénom", txt], ["nom", "nom", txt], ["role", "rôle", (v) => ROLES[String(v)] ?? txt(v)]];
   const liste = champs.filter(([k]) => JSON.stringify(a[k]) !== JSON.stringify(b[k])).map(([k, libelle, f]) => `${libelle} : ${f(a[k])} → ${f(b[k])}`);
   if (e.objet === "MEMBRE" && a.actif !== b.actif) liste.push(b.actif ? "accès activé" : "accès retiré");

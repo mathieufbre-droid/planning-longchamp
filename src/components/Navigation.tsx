@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, History, Mountain, Users } from "lucide-react";
+import { CalendarDays, History, Mountain, ReceiptEuro, Users } from "lucide-react";
 import BoutonDeconnexion from "@/components/BoutonDeconnexion";
 import { LIBELLES_ROLE, type Profil } from "@/lib/types";
 
@@ -14,6 +14,7 @@ export default function Navigation({ profil }: { profil: Profil }) {
     ...(profil.role === "ADMINISTRATEUR" ? [
       { href: "/membres", libelle: "Membres", Icone: Users },
       { href: "/journal", libelle: "Journal", Icone: History },
+      { href: "/recapitulatif", libelle: "Récapitulatif", Icone: ReceiptEuro },
     ] : []),
   ];
   const actif = (href: string) => (href === "/" ? chemin === "/" : chemin.startsWith(href));
