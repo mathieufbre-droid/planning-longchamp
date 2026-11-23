@@ -124,30 +124,6 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
         })}
       </div>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Toutes les réservations {annee}</h2>
-        {reservations.length === 0 ? <p className="text-sm text-slate-500">Aucune réservation pour l&apos;instant.</p> : (
-          <div className="bg-white border rounded-xl overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr><th className="p-3">Dates</th><th className="p-3">Type</th><th className="p-3">Occupant</th><th className="p-3">Jours</th><th className="p-3">Note</th></tr>
-              </thead>
-              <tbody className="divide-y">
-                {reservations.map((r) => (
-                  <tr key={r.id} onClick={() => ouvrir(r)} className="cursor-pointer hover:bg-slate-50">
-                    <td className="p-3 whitespace-nowrap">{dateCourte(r.debut)} → {dateCourte(r.fin)}</td>
-                    <td className="p-3">{LIBELLES_TYPE[r.type]}</td>
-                    <td className="p-3"><span className={`px-2 py-0.5 rounded border ${couleurOccupant(r.occupant)}`}>{r.occupant}</span></td>
-                    <td className="p-3 tabular-nums">{jours(r)}</td>
-                    <td className="p-3 text-slate-600">{r.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
       {fiche && (
         <FicheReservation brouillon={fiche} admin={admin} reservations={reservations} occupantsConnus={occupantsConnus}
           onFermer={() => setFiche(null)} onEnregistre={() => { setFiche(null); charger(); }} />
