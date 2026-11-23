@@ -39,7 +39,7 @@ export default function GestionMembres({ moi }: { moi: string }) {
   const enAttente = membres.filter((m) => !m.actif).length;
 
   return (
-    <main className="max-w-5xl mx-auto p-4 md:p-8 space-y-4">
+    <main className="max-w-5xl mx-auto p-4 pb-24 md:p-8 space-y-4">
       <h1 className="text-lg font-bold">Membres</h1>
       <div className="text-sm text-slate-600 space-y-1">
         <p><strong>Administrateur</strong> : réserve, modifie et supprime les séjours, gère les membres. <strong>Lecteur</strong> : consulte le planning.</p>
@@ -48,7 +48,7 @@ export default function GestionMembres({ moi }: { moi: string }) {
       <FormulaireAjout onAjoute={(nom) => { setMessage(""); setSucces(`${nom} a été ajouté(e). Communiquez-lui son identifiant et son mot de passe.`); charger(); }} onErreur={(e) => { setSucces(""); setMessage(e); }} />
       {message && <p className="text-sm text-red-600">{message}</p>}
       {succes && <p className="text-sm text-emerald-700">{succes}</p>}
-      <div className="bg-white border rounded-xl overflow-x-auto">
+      <div className="hidden md:block bg-white border rounded-xl overflow-x-auto">
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr><th className="p-3">Prénom</th><th className="p-3">Nom</th><th className="p-3">Identifiant</th><th className="p-3">Rôle</th><th className="p-3">Accès</th><th className="p-3">Mot de passe</th></tr>
@@ -77,6 +77,32 @@ export default function GestionMembres({ moi }: { moi: string }) {
           </tbody>
         </table>
       </div>
+      {/* Téléphone : une carte par membre */}
+      <ul className="md:hidden space-y-3">
+        {membres.map((m) => (
+          <li key={m.id} className={`bg-white border rounded-xl p-3 space-y-2 ${m.actif ? "" : "bg-amber-50/60 border-amber-200"}`}>
+            <div className="flex items-center gap-1">
+              <ChampTexte valeur={m.prenom} placeholder="Prénom" onValider={(prenom) => maj(m.id, { prenom })} />
+              <ChampTexte valeur={m.nom} placeholder="Nom" onValider={(nom) => maj(m.id, { nom })} />
+            </div>
+            <p className="text-sm text-slate-500 px-1.5">{identifiant(m.email)}</p>
+            <div className="flex items-center gap-3 px-1.5">
+              <select value={m.role} disabled={m.id === moi} onChange={(e) => maj(m.id, { role: e.target.value as Role })} className={champ} aria-label={`Rôle de ${m.email}`}>
+                {(Object.keys(LIBELLES_ROLE) as Role[]).map((r) => <option key={r} value={r}>{LIBELLES_ROLE[r]}</option>)}
+              </select>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={m.actif} disabled={m.id === moi} onChange={(e) => maj(m.id, { actif: e.target.checked })} className="w-5 h-5" />
+                Accès
+              </label>
+            </div>
+            <div className="px-1.5">
+              {mdpOuvert === m.id
+                ? <NouveauMotDePasse onValider={(mdp) => changerMotDePasse(m, mdp)} onAnnuler={() => setMdpOuvert(null)} />
+                : <button type="button" onClick={() => setMdpOuvert(m.id)} className="text-sm px-3 py-1.5 rounded border hover:bg-slate-100">Changer le mot de passe</button>}
+            </div>
+          </li>
+        ))}
+      </ul>
       <p className="text-xs text-slate-500">Décocher « Accès » retire immédiatement l&apos;accès au planning. Un membre invité par email depuis Supabase apparaît ici désactivé jusqu&apos;à ce que vous cochiez « Accès ».</p>
     </main>
   );
@@ -101,6 +127,7 @@ function FormulaireAjout({ onAjoute, onErreur }: { onAjoute: (nom: string) => vo
   const vide = { prenom: "", nom: "", identifiant: "", motDePasse: "", role: "LECTEUR" as Role };
   const [f, setF] = useState(vide);
   const [envoi, setEnvoi] = useState(false);
+  const [ouvert, setOuvert] = useState(false);
   const champ = "w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-sky-500";
 
   const ajouter = async (e: React.FormEvent) => {
@@ -113,7 +140,15 @@ function FormulaireAjout({ onAjoute, onErreur }: { onAjoute: (nom: string) => vo
     if (error) return onErreur(messageErreur(error));
     onAjoute([f.prenom, f.nom].filter(Boolean).join(" ") || f.identifiant);
     setF(vide);
+    setOuvert(false);
   };
+
+  if (!ouvert) return (
+    <button type="button" onClick={() => setOuvert(true)}
+      className="w-full sm:w-auto flex items-center justify-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-sky-700 text-white font-semibold hover:bg-sky-800">
+      <UserPlus size={16} /> Ajouter un membre
+    </button>
+  );
 
   return (
     <form onSubmit={ajouter} className="bg-white border rounded-xl p-4 space-y-3">
@@ -134,9 +169,12 @@ function FormulaireAjout({ onAjoute, onErreur }: { onAjoute: (nom: string) => vo
             {(Object.keys(LIBELLES_ROLE) as Role[]).map((r) => <option key={r} value={r}>{LIBELLES_ROLE[r]}</option>)}
           </select></label>
       </div>
-      <button disabled={envoi} className="text-sm px-4 py-2 rounded bg-sky-700 text-white font-semibold hover:bg-sky-800 disabled:opacity-60">
-        {envoi ? "Ajout…" : "Ajouter"}
-      </button>
+      <div className="flex gap-2">
+        <button disabled={envoi} className="text-sm px-4 py-2 rounded bg-sky-700 text-white font-semibold hover:bg-sky-800 disabled:opacity-60">
+          {envoi ? "Ajout…" : "Ajouter"}
+        </button>
+        <button type="button" onClick={() => setOuvert(false)} className="text-sm px-3 py-2 rounded hover:bg-slate-100">Annuler</button>
+      </div>
     </form>
   );
 }

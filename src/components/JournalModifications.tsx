@@ -28,7 +28,7 @@ export default function JournalModifications() {
   useEffect(() => { charger(); }, [charger]);
 
   return (
-    <main className="max-w-5xl mx-auto p-4 md:p-8 space-y-4">
+    <main className="max-w-5xl mx-auto p-4 pb-24 md:p-8 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-bold">Journal des modifications</h1>
         <select value={objet} onChange={(e) => { setObjet(e.target.value as ObjetJournal | ""); setLimite(PAR_PAGE); }} className="ml-auto p-2 border rounded text-sm" aria-label="Filtrer">

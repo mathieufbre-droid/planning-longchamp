@@ -1,33 +1,59 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CalendarDays, History, Mountain, Users } from "lucide-react";
 import BoutonDeconnexion from "@/components/BoutonDeconnexion";
 import { LIBELLES_ROLE, type Profil } from "@/lib/types";
 
+/** En-tête sur ordinateur ; sur téléphone, barre du haut compacte + barre d'onglets en bas, comme une application. */
 export default function Navigation({ profil }: { profil: Profil }) {
-  const lien = "flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900";
+  const chemin = usePathname();
+  const onglets = [
+    { href: "/", libelle: "Planning", Icone: CalendarDays },
+    ...(profil.role === "ADMINISTRATEUR" ? [
+      { href: "/membres", libelle: "Membres", Icone: Users },
+      { href: "/journal", libelle: "Journal", Icone: History },
+    ] : []),
+  ];
+  const actif = (href: string) => (href === "/" ? chemin === "/" : chemin.startsWith(href));
+  const nom = [profil.prenom, profil.nom].filter(Boolean).join(" ") || profil.email;
+
   return (
-    <header className="bg-white border-b">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <Link href="/" className="flex items-center gap-2 font-bold text-sky-800">
-          <Mountain size={20} aria-hidden /> Longchamps
-        </Link>
-        <nav className="flex items-center gap-5">
-          <Link href="/" className={lien}><CalendarDays size={16} /> Planning</Link>
-          {profil.role === "ADMINISTRATEUR" && (
-            <>
-              <Link href="/membres" className={lien}><Users size={16} /> Membres</Link>
-              <Link href="/journal" className={lien}><History size={16} /> Journal</Link>
-            </>
-          )}
-        </nav>
-        <div className="ml-auto flex items-center gap-4">
-          <span className="text-sm text-slate-500">
-            {[profil.prenom, profil.nom].filter(Boolean).join(" ") || profil.email}
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-100">{LIBELLES_ROLE[profil.role]}</span>
-          </span>
-          <BoutonDeconnexion />
+    <>
+      <header className="bg-white border-b sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2 font-bold text-sky-800">
+            <Mountain size={20} aria-hidden /> Longchamps
+          </Link>
+          <nav className="hidden md:flex items-center gap-5">
+            {onglets.map(({ href, libelle, Icone }) => (
+              <Link key={href} href={href} className={`flex items-center gap-1.5 text-sm ${actif(href) ? "text-sky-800 font-semibold" : "text-slate-600 hover:text-slate-900"}`}>
+                <Icone size={16} /> {libelle}
+              </Link>
+            ))}
+          </nav>
+          <div className="ml-auto flex items-center gap-4">
+            <span className="text-sm text-slate-500 truncate max-w-[40vw]">
+              {nom}
+              <span className="hidden sm:inline ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-100">{LIBELLES_ROLE[profil.role]}</span>
+            </span>
+            <BoutonDeconnexion />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+      {onglets.length > 1 && (
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t pb-[env(safe-area-inset-bottom)]" aria-label="Navigation">
+          <div className="grid" style={{ gridTemplateColumns: `repeat(${onglets.length}, 1fr)` }}>
+            {onglets.map(({ href, libelle, Icone }) => (
+              <Link key={href} href={href} aria-current={actif(href) ? "page" : undefined}
+                className={`flex flex-col items-center gap-0.5 py-2 text-xs ${actif(href) ? "text-sky-700 font-semibold" : "text-slate-500"}`}>
+                <Icone size={22} /> {libelle}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      )}
+    </>
   );
 }

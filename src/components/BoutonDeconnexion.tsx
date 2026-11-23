@@ -14,9 +14,10 @@ export default function BoutonDeconnexion() {
         router.replace("/login");
         router.refresh();
       }}
+      aria-label="Déconnexion"
       className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900"
     >
-      <LogOut size={16} /> Déconnexion
+      <LogOut size={16} aria-hidden /> <span className="hidden sm:inline">Déconnexion</span>
     </button>
   );
 }

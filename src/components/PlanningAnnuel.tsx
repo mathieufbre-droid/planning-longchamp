@@ -63,28 +63,28 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
   const totalJours = reservations.reduce((t, r) => t + jours(r), 0);
 
   return (
-    <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
-      <nav aria-label="Choisir l'année" className="flex flex-wrap gap-2">
+    <main className="max-w-6xl mx-auto p-4 pb-24 md:p-8 space-y-5">
+      <nav aria-label="Choisir l'année" className="grid grid-cols-5 gap-2 sm:flex sm:flex-wrap">
         {ANNEES.map((a) => (
           <Link key={a} href={`/?annee=${a}`} aria-current={a === annee ? "page" : undefined}
-            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-xl border-2 flex flex-col items-center justify-center font-bold text-xl tabular-nums transition-colors ${
+            className={`aspect-square sm:w-24 sm:h-24 rounded-xl border-2 flex flex-col items-center justify-center font-bold text-base sm:text-xl tabular-nums transition-colors ${
               a === annee ? "bg-sky-700 border-sky-700 text-white shadow" : "bg-white border-slate-200 text-slate-700 hover:border-sky-500 hover:text-sky-800"}`}>
             {a}
-            {a === anneeCourante && <span className={`text-[10px] font-medium uppercase tracking-wide ${a === annee ? "text-sky-100" : "text-sky-700"}`}>cette année</span>}
+            {a === anneeCourante && <span className={`text-[9px] sm:text-[10px] font-medium uppercase tracking-wide ${a === annee ? "text-sky-100" : "text-sky-700"}`}><span className="sm:hidden">actuelle</span><span className="hidden sm:inline">cette année</span></span>}
           </Link>
         ))}
       </nav>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold tabular-nums">Planning {annee}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tabular-nums">Planning {annee}</h1>
         <p className="text-sm text-slate-500">{reservations.length} réservation{reservations.length > 1 ? "s" : ""} · {totalJours} jour{totalJours > 1 ? "s" : ""}</p>
         {admin && (
           <button type="button" onClick={() => nouvelle({ debut: "", fin: "" }, "AUTRE")}
-            className="ml-auto flex items-center gap-1.5 text-sm bg-sky-700 text-white px-3 py-2 rounded hover:bg-sky-800">
+            className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-1.5 text-sm bg-sky-700 text-white px-3 py-2.5 sm:py-2 rounded-lg hover:bg-sky-800">
             <Plus size={16} /> Autres dates
           </button>
         )}
       </div>
-      <p className="text-sm text-slate-500">
+      <p className="hidden sm:block text-sm text-slate-500">
         Semaine du lundi au vendredi, week-end le samedi et le dimanche.
         {admin ? " Cliquez sur une semaine ou un week-end libre pour le réserver, ou sur une réservation pour la modifier." : " Lecture seule : seuls les administrateurs réservent."}
       </p>
@@ -96,8 +96,8 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
           const ouvert = !passe || moisOuverts.has(mois);
           const nbResas = new Set(semaines.flatMap((s) => reservationsSur(s, reservations).map((r) => r.id))).size;
           return (
-            <section key={mois} className={`grid gap-3 md:grid-cols-[8rem_1fr] ${passe ? "" : "border-t pt-3"}`}>
-              <h2 className="md:pt-3">
+            <section key={mois} className={`${passe && !ouvert ? "flex items-baseline gap-3" : "grid gap-2 md:gap-3"} md:grid md:grid-cols-[8rem_1fr] ${passe ? "" : "border-t pt-3"}`}>
+              <h2 className="md:pt-3 shrink-0">
                 {passe ? (
                   <button type="button" onClick={() => basculerMois(mois)} aria-expanded={ouvert}
                     className="flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-700">
@@ -116,7 +116,7 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
               ) : (
                 <button type="button" onClick={() => basculerMois(mois)}
                   className="text-left text-sm text-slate-400 md:pt-3 hover:text-slate-700">
-                  Mois passé · {nbResas === 0 ? "aucune réservation" : `${nbResas} réservation${nbResas > 1 ? "s" : ""}`} · afficher
+                  <span className="hidden sm:inline">Mois passé · </span>{nbResas === 0 ? "aucune réservation" : `${nbResas} réservation${nbResas > 1 ? "s" : ""}`} · afficher
                 </button>
               )}
             </section>

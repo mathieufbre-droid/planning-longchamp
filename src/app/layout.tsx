@@ -6,9 +6,10 @@ export const metadata: Metadata = {
   description: "Réservations familiales de l'appartement de Saint François Longchamps",
   applicationName: "Planning Longchamps",
   appleWebApp: { capable: true, title: "Longchamps", statusBarStyle: "default" },
+  icons: { icon: "/favicon.png", apple: "/apple-touch-icon.png" },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#ffffff" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#ffffff" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

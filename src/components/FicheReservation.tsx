@@ -61,7 +61,7 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onFermer}>
       <form onSubmit={enregistrer} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="titre-fiche"
-        className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl">
+        className="w-full sm:max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 id="titre-fiche" className="font-bold">
             {!admin ? "Réservation" : f.id ? "Modifier la réservation" : `Réserver ${f.type === "AUTRE" ? "des dates" : f.type === "SEMAINE" ? "la semaine" : "le week-end"}`}
