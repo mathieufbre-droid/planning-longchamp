@@ -85,4 +85,28 @@ DO $$ DECLARE n INT; BEGIN
   UPDATE membres SET role = 'LECTEUR' WHERE id = auth.uid();
 END $$;
 
+-- Anne est maintenant lectrice : ne lit plus le journal
+DO $$ BEGIN
+  IF (SELECT count(*) FROM journal) <> 0 THEN RAISE EXCEPTION 'lecteur lit le journal'; END IF;
+END $$;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000b',false);
+-- Journal : tout est tracé avec l'auteur ; seul l'admin le lit ; personne ne le modifie
+DO $$ DECLARE n INT; BEGIN
+  IF (SELECT count(*) FROM journal WHERE objet = 'RESERVATION' AND action = 'AJOUT' AND auteur = 'Anne Martin') <> 3 THEN RAISE EXCEPTION 'ajouts non journalisés'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'RESERVATION' AND action = 'MODIFICATION' AND avant->>'note' = '' AND apres->>'note' = 'Arrivée tardive') THEN RAISE EXCEPTION 'modification non journalisée'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'RESERVATION' AND action = 'SUPPRESSION' AND avant->>'occupant' = 'Paul') THEN RAISE EXCEPTION 'suppression non journalisée'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'MODIFICATION' AND apres->>'role' = 'LECTEUR' AND avant->>'role' = 'ADMINISTRATEUR') THEN RAISE EXCEPTION 'changement de rôle non journalisé'; END IF;
+  IF EXISTS (SELECT 1 FROM journal WHERE action = 'MODIFICATION' AND avant = apres) THEN RAISE EXCEPTION 'modification vide journalisée'; END IF;
+END $$;
+DO $$ DECLARE n INT; BEGIN
+  BEGIN
+    DELETE FROM journal;
+    RAISE EXCEPTION 'journal effaçable';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN
+    INSERT INTO journal (auteur, action, objet, objet_id) VALUES ('Faux', 'AJOUT', 'MEMBRE', 'x');
+    RAISE EXCEPTION 'journal falsifiable';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+
 \echo 'TOUS LES SCÉNARIOS PASSENT'

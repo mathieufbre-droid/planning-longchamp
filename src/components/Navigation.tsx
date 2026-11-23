@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, Mountain, Users } from "lucide-react";
+import { CalendarDays, History, Mountain, Users } from "lucide-react";
 import BoutonDeconnexion from "@/components/BoutonDeconnexion";
 import { LIBELLES_ROLE, type Profil } from "@/lib/types";
 
@@ -13,7 +13,12 @@ export default function Navigation({ profil }: { profil: Profil }) {
         </Link>
         <nav className="flex items-center gap-5">
           <Link href="/" className={lien}><CalendarDays size={16} /> Planning</Link>
-          {profil.role === "ADMINISTRATEUR" && <Link href="/membres" className={lien}><Users size={16} /> Membres</Link>}
+          {profil.role === "ADMINISTRATEUR" && (
+            <>
+              <Link href="/membres" className={lien}><Users size={16} /> Membres</Link>
+              <Link href="/journal" className={lien}><History size={16} /> Journal</Link>
+            </>
+          )}
         </nav>
         <div className="ml-auto flex items-center gap-4">
           <span className="text-sm text-slate-500">

@@ -9,6 +9,7 @@ Base technique reprise de l'application Plombelec (connexion Supabase par invita
 |---|---|---|
 | `/` | Tous les membres actifs | Planning annuel : semaines regroupées par mois, chacune avec sa semaine (lundi → vendredi) et son week-end (samedi → dimanche). Flèches pour changer d'année, liste de toutes les réservations de l'année en bas. |
 | `/membres` | Administrateurs | Activation des comptes, prénom / nom, rôle |
+| `/journal` | Administrateurs | Journal des modifications : date, heure, personne, réservation ou membre ajouté, modifié ou supprimé (avec le détail avant → après) |
 | `/login`, `/en-attente` | — | Connexion ; page affichée tant qu'un compte n'est pas activé |
 
 ## Rôles
@@ -24,6 +25,7 @@ Les droits sont vérifiés par la base (Row Level Security), pas seulement par l
 - **Aucun chevauchement** possible entre deux réservations (contrainte d'exclusion PostgreSQL), même saisies en même temps.
 - Occupant obligatoire, 62 jours au maximum.
 - Tout nouveau compte est **inactif** et ne voit rien tant qu'un administrateur ne l'a pas activé.
+- Chaque ajout, modification ou suppression de réservation ou de membre est inscrit au **journal** par la base ; il est lisible par les administrateurs et ne peut être ni modifié ni effacé depuis l'application.
 - Il reste toujours **au moins un administrateur actif** (impossible de se rétrograder si on est le dernier).
 
 ## Mise en route
