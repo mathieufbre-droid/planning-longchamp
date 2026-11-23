@@ -57,3 +57,19 @@ test("identifiant simple ou email", async () => {
   assert.equal(emailDeConnexion(" MathieuFabre "), "mathieufabre@longchamps.local");
   assert.equal(emailDeConnexion("a@b.fr"), "a@b.fr");
 });
+
+test("jours restés libres dans une semaine partiellement réservée", async () => {
+  const { plagesLibres, plusLonguePlageLibre } = await import("./planning.ts");
+  const semaine = { debut: "2027-01-25", fin: "2027-01-29" }; // lun. → ven.
+  // Réservation du sam. 23 au mar. 26 : il reste mer. 27 → ven. 29
+  const r = [{ debut: "2027-01-23", fin: "2027-01-26" }];
+  assert.deepEqual(plagesLibres(semaine, r), [{ debut: "2027-01-27", fin: "2027-01-29" }]);
+  assert.deepEqual(plusLonguePlageLibre(semaine, r), { debut: "2027-01-27", fin: "2027-01-29" });
+  // Trou au milieu : lun. et jeu.-ven. libres, la plus longue est jeu.-ven.
+  const r2 = [{ debut: "2027-01-26", fin: "2027-01-27" }];
+  assert.deepEqual(plagesLibres(semaine, r2), [{ debut: "2027-01-25", fin: "2027-01-25" }, { debut: "2027-01-28", fin: "2027-01-29" }]);
+  assert.deepEqual(plusLonguePlageLibre(semaine, r2), { debut: "2027-01-28", fin: "2027-01-29" });
+  // Tout pris / rien de pris
+  assert.equal(plusLonguePlageLibre(semaine, [{ debut: "2027-01-20", fin: "2027-02-05" }]), null);
+  assert.deepEqual(plusLonguePlageLibre(semaine, []), semaine);
+});

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  couleurOccupant, dateCourte, intervalle, jours, nomMois, reservationsSur, semainesDeLAnnee, versIso,
+  couleurOccupant, dateCourte, intervalle, jours, nomMois, plusLonguePlageLibre, reservationsSur, semainesDeLAnnee, versIso,
   type Periode, type Semaine, type TypeReservation,
 } from "@/lib/planning";
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
@@ -162,8 +162,9 @@ function CarteSemaine({ semaine, reservations, admin, passee, enCours, onReserve
 }) {
   const occupees = reservationsSur(semaine, reservations);
   const toutLibre = occupees.length === 0;
-  const semaineLibre = reservationsSur(semaine.jours, reservations).length === 0;
-  const weekEndLibre = reservationsSur(semaine.weekEnd, reservations).length === 0;
+  // Jours restés libres : une réservation à cheval sur deux semaines n'empêche pas de réserver le reste
+  const resteSemaine = plusLonguePlageLibre(semaine.jours, reservations);
+  const resteWeekEnd = plusLonguePlageLibre(semaine.weekEnd, reservations);
   const bouton = "flex-1 text-xs py-1.5 rounded border border-dashed border-slate-300 text-slate-600 hover:border-sky-500 hover:text-sky-800 hover:bg-sky-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-slate-300 disabled:hover:text-slate-600";
 
   return (
@@ -186,13 +187,28 @@ function CarteSemaine({ semaine, reservations, admin, passee, enCours, onReserve
       )}
       {admin && !passee && (
         <div className="flex gap-2">
-          <button type="button" disabled={!semaineLibre} onClick={() => onReserver(semaine.jours, "SEMAINE")} className={bouton}
-            title={semaineLibre ? `Réserver ${dateCourte(semaine.jours.debut)} → ${dateCourte(semaine.jours.fin)}` : "Semaine déjà occupée"}>Semaine</button>
-          <button type="button" disabled={!weekEndLibre} onClick={() => onReserver(semaine.weekEnd, "WEEK_END")} className={bouton}
-            title={weekEndLibre ? `Réserver ${dateCourte(semaine.weekEnd.debut)} → ${dateCourte(semaine.weekEnd.fin)}` : "Week-end déjà occupé"}>Week-end</button>
+          <BoutonReserver periode={semaine.jours} reste={resteSemaine} libelle="Semaine" type="SEMAINE" occupe="Semaine déjà occupée" className={bouton} onReserver={onReserver} />
+          <BoutonReserver periode={semaine.weekEnd} reste={resteWeekEnd} libelle="Week-end" type="WEEK_END" occupe="Week-end déjà occupé" className={bouton} onReserver={onReserver} />
         </div>
       )}
       
     </article>
+  );
+}
+
+/** « Semaine » / « Week-end » si tout est libre ; sinon propose les jours restants (« mer. 27 → ven. 29 »). */
+function BoutonReserver({ periode, reste, libelle, type, occupe, className, onReserver }: {
+  periode: Periode; reste: Periode | null; libelle: string; type: TypeReservation; occupe: string; className: string;
+  onReserver: (p: Periode, type: TypeReservation) => void;
+}) {
+  const complet = reste && reste.debut === periode.debut && reste.fin === periode.fin;
+  const court = (iso: string) => dateCourte(iso).split(" ").slice(0, 2).join(" ");
+  const texte = !reste || complet ? libelle : reste.debut === reste.fin ? court(reste.debut) : `${court(reste.debut)} → ${court(reste.fin)}`;
+  return (
+    <button type="button" disabled={!reste} className={className}
+      onClick={() => reste && onReserver(reste, complet ? type : "AUTRE")}
+      title={reste ? `Réserver ${dateCourte(reste.debut)} → ${dateCourte(reste.fin)}` : occupe}>
+      {texte}
+    </button>
   );
 }

@@ -88,3 +88,20 @@ export function couleurOccupant(occupant: string) {
   for (const c of occupant.trim().toLowerCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return COULEURS[h % COULEURS.length];
 }
+
+/** Plages de jours encore libres dans une période (dans l'ordre), ex. mer. → ven. si lun. → mar. est pris. */
+export function plagesLibres(periode: Periode, reservations: Periode[]): Periode[] {
+  const plages: Periode[] = [];
+  let debutLibre: string | null = null;
+  for (let jour = periode.debut; jour <= periode.fin; jour = ajouterJours(jour, 1)) {
+    const pris = reservations.some((r) => r.debut <= jour && jour <= r.fin);
+    if (!pris && debutLibre === null) debutLibre = jour;
+    if (pris && debutLibre !== null) { plages.push({ debut: debutLibre, fin: ajouterJours(jour, -1) }); debutLibre = null; }
+  }
+  if (debutLibre !== null) plages.push({ debut: debutLibre, fin: periode.fin });
+  return plages;
+}
+
+/** La plus longue plage libre (la première en cas d'égalité), ou null si tout est pris. */
+export const plusLonguePlageLibre = (periode: Periode, reservations: Periode[]) =>
+  plagesLibres(periode, reservations).reduce<Periode | null>((meilleure, p) => (!meilleure || jours(p) > jours(meilleure) ? p : meilleure), null);
