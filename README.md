@@ -7,8 +7,8 @@ Base technique reprise de l'application Plombelec (connexion Supabase par invita
 
 | Adresse | Pour qui | Contenu |
 |---|---|---|
-| `/` | Tous les membres actifs | Planning annuel : semaines regroupées par mois, chacune avec sa semaine (lundi → vendredi) et son week-end (samedi → dimanche). Flèches pour changer d'année, liste de toutes les réservations de l'année en bas. |
-| `/membres` | Administrateurs | Activation des comptes, prénom / nom, rôle |
+| `/` | Tous les membres actifs | Planning annuel : carrés 2026 → 2030 pour choisir l'année, une ligne par mois (nom du mois à gauche), chaque semaine avec sa semaine (lundi → vendredi) et son week-end (samedi → dimanche). Mois passés repliés (clic pour les afficher). Liste de toutes les réservations de l'année en bas. |
+| `/membres` | Administrateurs | Ajout d'un membre (identifiant ou email, mot de passe, rôle), activation, prénom / nom, rôle, changement de mot de passe |
 | `/journal` | Administrateurs | Journal des modifications : date, heure, personne, réservation ou membre ajouté, modifié ou supprimé (avec le détail avant → après) |
 | `/login`, `/en-attente` | — | Connexion ; page affichée tant qu'un compte n'est pas activé |
 

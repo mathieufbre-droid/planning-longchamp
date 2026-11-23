@@ -109,4 +109,31 @@ DO $$ DECLARE n INT; BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 
+-- Ajout de membres depuis l'application (b est administrateur à ce stade)
+DO $$ DECLARE v UUID; BEGIN
+  v := ajouter_membre('Claire', 'motdepasse1', 'Claire', 'Durand', 'LECTEUR');
+  IF NOT EXISTS (SELECT 1 FROM membres WHERE id = v AND email = 'claire@longchamps.local' AND actif AND role = 'LECTEUR' AND prenom = 'Claire') THEN RAISE EXCEPTION 'membre mal créé'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'AJOUT' AND objet_id = v::TEXT AND auteur = 'Paul Martin') THEN RAISE EXCEPTION 'ajout de membre non journalisé'; END IF;
+  BEGIN PERFORM ajouter_membre('claire', 'autremotdepasse', '', '', 'LECTEUR'); RAISE EXCEPTION 'doublon accepté';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Ce compte existe%' THEN RAISE; END IF; END;
+  BEGIN PERFORM ajouter_membre('court', '1234', '', '', 'LECTEUR'); RAISE EXCEPTION 'mot de passe court accepté';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Le mot de passe%' THEN RAISE; END IF; END;
+  PERFORM definir_mot_de_passe(v, 'nouveaumdp1');
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet_id = v::TEXT AND apres->>'mot_de_passe' = 'modifié') THEN RAISE EXCEPTION 'changement de mot de passe non journalisé'; END IF;
+  IF EXISTS (SELECT 1 FROM journal WHERE apres::TEXT LIKE '%nouveaumdp1%' OR avant::TEXT LIKE '%nouveaumdp1%') THEN RAISE EXCEPTION 'mot de passe en clair dans le journal'; END IF;
+END $$;
+RESET ROLE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'claire@longchamps.local' AND encrypted_password = extensions.crypt('nouveaumdp1', encrypted_password)) THEN RAISE EXCEPTION 'mot de passe non changé'; END IF;
+END $$;
+SET ROLE authenticated;
+-- Un lecteur ne peut pas ajouter de membre
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
+DO $$ BEGIN
+  BEGIN PERFORM ajouter_membre('pirate', 'motdepasse1', '', '', 'ADMINISTRATEUR'); RAISE EXCEPTION 'lecteur a ajouté un membre';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Action réservée%' THEN RAISE; END IF; END;
+  BEGIN PERFORM definir_mot_de_passe('00000000-0000-0000-0000-00000000000b', 'motdepasse1'); RAISE EXCEPTION 'lecteur a changé un mot de passe';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Action réservée%' THEN RAISE; END IF; END;
+END $$;
+
 \echo 'TOUS LES SCÉNARIOS PASSENT'

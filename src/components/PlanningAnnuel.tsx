@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   couleurOccupant, dateCourte, intervalle, jours, nomMois, reservationsSur, semainesDeLAnnee, versIso,
@@ -11,6 +11,9 @@ import {
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
 import FicheReservation, { type Brouillon } from "@/components/FicheReservation";
 
+/** Années proposées en carrés cliquables. */
+const ANNEES = [2026, 2027, 2028, 2029, 2030];
+
 /** Vue annuelle : semaines du lundi au dimanche regroupées par mois ; semaine lundi → vendredi, week-end samedi → dimanche. */
 export default function PlanningAnnuel({ annee, admin }: { annee: number; admin: boolean }) {
   const supabase = useMemo(() => createClient(), []);
@@ -18,9 +21,12 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
   const [occupantsConnus, setOccupantsConnus] = useState<string[]>([]);
   const [erreur, setErreur] = useState("");
   const [fiche, setFiche] = useState<Brouillon | null>(null);
+  const [moisOuverts, setMoisOuverts] = useState<Set<number>>(new Set());
+  const basculerMois = (m: number) => setMoisOuverts((o) => { const n = new Set(o); if (n.has(m)) n.delete(m); else n.add(m); return n; });
 
   const semaines = useMemo(() => semainesDeLAnnee(annee), [annee]);
   const aujourdhui = versIso(new Date());
+  const anneeCourante = new Date().getFullYear();
 
   const charger = useCallback(async () => {
     const debut = `${annee}-01-01`;
@@ -58,10 +64,18 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
 
   return (
     <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
+      <nav aria-label="Choisir l'année" className="flex flex-wrap gap-2">
+        {ANNEES.map((a) => (
+          <Link key={a} href={`/?annee=${a}`} aria-current={a === annee ? "page" : undefined}
+            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-xl border-2 flex flex-col items-center justify-center font-bold text-xl tabular-nums transition-colors ${
+              a === annee ? "bg-sky-700 border-sky-700 text-white shadow" : "bg-white border-slate-200 text-slate-700 hover:border-sky-500 hover:text-sky-800"}`}>
+            {a}
+            {a === anneeCourante && <span className={`text-[10px] font-medium uppercase tracking-wide ${a === annee ? "text-sky-100" : "text-sky-700"}`}>cette année</span>}
+          </Link>
+        ))}
+      </nav>
       <div className="flex flex-wrap items-center gap-3">
-        <Link href={`/?annee=${annee - 1}`} aria-label="Année précédente" className="p-2 rounded hover:bg-slate-200"><ChevronLeft size={20} /></Link>
-        <h1 className="text-2xl font-bold tabular-nums">{annee}</h1>
-        <Link href={`/?annee=${annee + 1}`} aria-label="Année suivante" className="p-2 rounded hover:bg-slate-200"><ChevronRight size={20} /></Link>
+        <h1 className="text-2xl font-bold tabular-nums">Planning {annee}</h1>
         <p className="text-sm text-slate-500">{reservations.length} réservation{reservations.length > 1 ? "s" : ""} · {totalJours} jour{totalJours > 1 ? "s" : ""}</p>
         {admin && (
           <button type="button" onClick={() => nouvelle({ debut: "", fin: "" }, "AUTRE")}
@@ -76,18 +90,39 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
       </p>
       {erreur && <p className="text-sm text-red-600">{erreur}</p>}
 
-      {parMois.map(({ mois, semaines }) => (
-        <section key={mois} className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{nomMois(mois)}</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {semaines.map((s) => (
-              <CarteSemaine key={s.debut} semaine={s} reservations={reservations} admin={admin}
-                passee={s.fin < aujourdhui} enCours={s.debut <= aujourdhui && aujourdhui <= s.fin}
-                onReserver={nouvelle} onOuvrir={ouvrir} />
-            ))}
-          </div>
-        </section>
-      ))}
+      <div className="space-y-3">
+        {parMois.map(({ mois, semaines }) => {
+          const passe = semaines.at(-1)!.fin < aujourdhui;
+          const ouvert = !passe || moisOuverts.has(mois);
+          const nbResas = new Set(semaines.flatMap((s) => reservationsSur(s, reservations).map((r) => r.id))).size;
+          return (
+            <section key={mois} className={`grid gap-3 md:grid-cols-[8rem_1fr] ${passe ? "" : "border-t pt-3"}`}>
+              <h2 className="md:pt-3">
+                {passe ? (
+                  <button type="button" onClick={() => basculerMois(mois)} aria-expanded={ouvert}
+                    className="flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-700">
+                    {ouvert ? <ChevronDown size={16} /> : <ChevronRight size={16} />} {nomMois(mois)}
+                  </button>
+                ) : <span className="text-sm font-semibold uppercase tracking-wide text-sky-800">{nomMois(mois)}</span>}
+              </h2>
+              {ouvert ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {semaines.map((s) => (
+                    <CarteSemaine key={s.debut} semaine={s} reservations={reservations} admin={admin}
+                      passee={s.fin < aujourdhui} enCours={s.debut <= aujourdhui && aujourdhui <= s.fin}
+                      onReserver={nouvelle} onOuvrir={ouvrir} />
+                  ))}
+                </div>
+              ) : (
+                <button type="button" onClick={() => basculerMois(mois)}
+                  className="text-left text-sm text-slate-400 md:pt-3 hover:text-slate-700">
+                  Mois passé · {nbResas === 0 ? "aucune réservation" : `${nbResas} réservation${nbResas > 1 ? "s" : ""}`} · afficher
+                </button>
+              )}
+            </section>
+          );
+        })}
+      </div>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Toutes les réservations {annee}</h2>

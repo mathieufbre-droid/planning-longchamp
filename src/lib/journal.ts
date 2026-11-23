@@ -38,6 +38,7 @@ function differences(e: EntreeJournal): string[] {
     : [["prenom", "prénom", txt], ["nom", "nom", txt], ["role", "rôle", (v) => ROLES[String(v)] ?? txt(v)]];
   const liste = champs.filter(([k]) => JSON.stringify(a[k]) !== JSON.stringify(b[k])).map(([k, libelle, f]) => `${libelle} : ${f(a[k])} → ${f(b[k])}`);
   if (e.objet === "MEMBRE" && a.actif !== b.actif) liste.push(b.actif ? "accès activé" : "accès retiré");
+  if (e.objet === "MEMBRE" && b.mot_de_passe) liste.push("mot de passe changé");
   return liste;
 }
 

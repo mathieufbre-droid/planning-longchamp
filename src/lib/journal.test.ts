@@ -23,3 +23,9 @@ test("membre activé et promu", () => {
 test("heure de Paris", () => {
   assert.match(horodatage("2026-11-23T07:47:00Z"), /08:47/);
 });
+
+test("changement de mot de passe", () => {
+  const m = { id: "u", prenom: "Claire", nom: "", email: "claire@longchamps.local", role: "LECTEUR", actif: true };
+  const d = decrire({ ...base, action: "MODIFICATION", objet: "MEMBRE", avant: m, apres: { ...m, mot_de_passe: "modifié" } } as EntreeJournal);
+  assert.deepEqual(d.detail, ["mot de passe changé"]);
+});
