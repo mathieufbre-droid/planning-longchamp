@@ -134,3 +134,17 @@ export function periodeAReserver(jour: string, reservations: Periode[]): { perio
   const complet = plage.debut === base.debut && plage.fin === base.fin;
   return { periode: plage, type: complet ? (estWeekEnd(jour) ? "WEEK_END" : "SEMAINE") : "AUTRE" };
 }
+
+/** Écart en jours entre deux dates (b − a). */
+export const ecartJours = (a: string, b: string) => Math.round((versDate(b).getTime() - versDate(a).getTime()) / JOUR);
+
+/** Décale une période de n jours en gardant sa durée. */
+export const decaler = (p: Periode, n: number): Periode => ({ debut: ajouterJours(p.debut, n), fin: ajouterJours(p.fin, n) });
+
+/** Type déduit des dates : lundi → vendredi = semaine, samedi → dimanche = week-end, sinon séjour. */
+export function typePour(p: Periode): TypeReservation {
+  const d = versDate(p.debut).getUTCDay();
+  if (d === 1 && ecartJours(p.debut, p.fin) === 4) return "SEMAINE";
+  if (d === 6 && ecartJours(p.debut, p.fin) === 1) return "WEEK_END";
+  return "AUTRE";
+}

@@ -90,3 +90,13 @@ test("clic sur un jour : semaine ou week-end libre qui le contient", async () =>
   assert.equal(periodeAReserver("2027-01-24", resas), null);
   assert.equal(joursDuMois(2028, 1), 29);
 });
+
+test("déplacer une réservation : décalage et type recalculé", async () => {
+  const { decaler, typePour, ecartJours } = await import("./planning.ts");
+  assert.equal(ecartJours("2027-01-28", "2027-02-02"), 5);
+  const semaine = { debut: "2027-01-04", fin: "2027-01-08" };
+  assert.deepEqual(decaler(semaine, 7), { debut: "2027-01-11", fin: "2027-01-15" });
+  assert.equal(typePour(decaler(semaine, 7)), "SEMAINE");
+  assert.equal(typePour(decaler(semaine, 2)), "AUTRE");
+  assert.equal(typePour({ debut: "2027-01-09", fin: "2027-01-10" }), "WEEK_END");
+});

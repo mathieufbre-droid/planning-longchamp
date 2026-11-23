@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  couleurBarre, dateCourte, estWeekEnd, jours, joursDuMois, nomMois, nomMoisCourt, periodeAReserver, semainesDeLAnnee, versDate, versIso,
+  couleurBarre, dateCourte, decaler, ecartJours, estWeekEnd, seChevauchent, typePour, jours, joursDuMois, nomMois, nomMoisCourt, periodeAReserver, semainesDeLAnnee, versDate, versIso,
   type Periode, type TypeReservation,
 } from "@/lib/planning";
 import { messageErreur, type Reservation } from "@/lib/types";
@@ -48,6 +48,29 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
   const nouvelle = (p: Periode, type: TypeReservation) => setFiche({ debut: p.debut, fin: p.fin, type, occupant: "", note: "" });
   const ouvrir = (r: Reservation) => setFiche({ ...r });
 
+  // Déplacement par glisser-déposer, avec possibilité d'annuler
+  const [annulation, setAnnulation] = useState<{ id: number; avant: Pick<Reservation, "debut" | "fin" | "type">; texte: string } | null>(null);
+  useEffect(() => {
+    if (!annulation) return;
+    const t = setTimeout(() => setAnnulation(null), 10000);
+    return () => clearTimeout(t);
+  }, [annulation]);
+  const deplacer = async (r: Reservation, p: Periode) => {
+    const valeurs = { debut: p.debut, fin: p.fin, type: typePour(p) };
+    setReservations((rs) => rs.map((x) => (x.id === r.id ? { ...x, ...valeurs } : x)));
+    const { error } = await supabase.from("reservations").update(valeurs).eq("id", r.id);
+    if (error) { setErreur(messageErreur(error)); setAnnulation(null); }
+    else { setErreur(""); setAnnulation({ id: r.id, avant: { debut: r.debut, fin: r.fin, type: r.type }, texte: `Réservation de ${r.occupant} déplacée : ${dateCourte(p.debut)} → ${dateCourte(p.fin)}` }); }
+    charger();
+  };
+  const annuler = async () => {
+    if (!annulation) return;
+    const { error } = await supabase.from("reservations").update(annulation.avant).eq("id", annulation.id);
+    setAnnulation(null);
+    if (error) setErreur(messageErreur(error));
+    charger();
+  };
+
   const totalJours = reservations.reduce((t, r) => t + jours(r), 0);
 
   return (
@@ -74,8 +97,14 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
         </button>
       )}
       <GrilleAnnee annee={annee} mois={moisAffiches} reservations={reservations} vacances={vacances} aujourdhui={aujourdhui}
-        admin={admin} onReserver={nouvelle} onOuvrir={ouvrir} />
+        admin={admin} onReserver={nouvelle} onOuvrir={ouvrir} onDeplacer={deplacer} />
 
+      {annulation && (
+        <div role="status" className="fixed z-50 left-1/2 -translate-x-1/2 bottom-20 md:bottom-6 flex items-center gap-3 bg-slate-900 text-white text-sm rounded-lg shadow-lg px-4 py-2.5 max-w-[92vw]">
+          <span className="truncate">{annulation.texte}</span>
+          <button type="button" onClick={annuler} className="font-semibold text-sky-300 hover:text-sky-200 shrink-0">Annuler</button>
+        </div>
+      )}
       {fiche && (
         <FicheReservation brouillon={fiche} admin={admin} reservations={reservations} occupantsConnus={occupantsConnus}
           onFermer={() => setFiche(null)} onEnregistre={() => { setFiche(null); charger(); }} />
@@ -91,11 +120,23 @@ const iso = (annee: number, mois: number, jour: number) => `${annee}-${String(mo
  * Vue synthétique : une ligne par mois, une colonne par jour (1 → 31).
  * Week-ends sur fond gris, vacances scolaires soulignées en ambre, réservations en barres de couleur avec le nom.
  */
-function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, onReserver, onOuvrir }: {
+function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, onReserver, onOuvrir, onDeplacer }: {
   annee: number; mois: number[]; reservations: Reservation[]; vacances: Vacances[]; aujourdhui: string; admin: boolean;
-  onReserver: (p: Periode, type: TypeReservation) => void; onOuvrir: (r: Reservation) => void;
+  onReserver: (p: Periode, type: TypeReservation) => void; onOuvrir: (r: Reservation) => void; onDeplacer: (r: Reservation, p: Periode) => void;
 }) {
   const colonnes = { gridTemplateColumns: "repeat(31, minmax(0, 1fr))" };
+  // Glisser-déposer : on attrape une barre sur un jour, on la lâche sur un autre jour (même sur un autre mois)
+  const [glisse, setGlisse] = useState<{ r: Reservation; depart: string; cible: string; x0: number; y0: number; bouge: boolean } | null>(null);
+  const dateSous = (x: number, y: number) =>
+    (document.elementsFromPoint(x, y).find((el) => (el as HTMLElement).dataset?.date) as HTMLElement | undefined)?.dataset.date;
+  const apercu = glisse && glisse.bouge ? decaler(glisse.r, ecartJours(glisse.depart, glisse.cible)) : null;
+  const apercuLibre = apercu ? !reservations.some((o) => o.id !== glisse!.r.id && seChevauchent(apercu, o)) : false;
+  const finGlisse = () => {
+    if (!glisse) return;
+    if (!glisse.bouge) onOuvrir(glisse.r);
+    else if (apercu && apercuLibre && apercu.debut !== glisse.r.debut) onDeplacer(glisse.r, apercu);
+    setGlisse(null);
+  };
   return (
     <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
       <div className="min-w-[820px] md:min-w-[900px] bg-white border rounded-xl overflow-hidden">
@@ -124,7 +165,8 @@ function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, o
                   const conge = vacancesSur({ debut: date, fin: date }, vacances)[0];
                   const libre = !reservations.some((r) => r.debut <= date && date <= r.fin);
                   const cliquable = admin && libre && date >= aujourdhui;
-                  const classe = `relative border-r last:border-r-0 border-slate-100 flex flex-col items-center pt-0.5 text-[10px] ${we ? "bg-slate-200/70 text-slate-600 font-medium" : "text-slate-400"} ${date === aujourdhui ? "ring-2 ring-inset ring-sky-500" : ""}`;
+                  const dansApercu = apercu && apercu.debut <= date && date <= apercu.fin;
+                  const classe = `relative border-r last:border-r-0 border-slate-100 flex flex-col items-center pt-0.5 text-[10px] ${dansApercu ? (apercuLibre ? "bg-emerald-200" : "bg-red-200") : we ? "bg-slate-200/70 text-slate-600 font-medium" : "text-slate-400"} ${date === aujourdhui ? "ring-2 ring-inset ring-sky-500" : ""}`;
                   const contenu = (
                     <>
                       {JOURS_LETTRES[versDate(date).getUTCDay()]}
@@ -133,10 +175,10 @@ function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, o
                   );
                   const titre = `${dateCourte(date)}${conge ? ` · ${conge.libelle}` : ""}`;
                   return cliquable ? (
-                    <button key={i} type="button" style={{ gridColumn: jour, gridRow: 1 }} title={`${titre} · réserver`}
+                    <button key={i} type="button" data-date={date} style={{ gridColumn: jour, gridRow: 1 }} title={`${titre} · réserver`}
                       onClick={() => { const p = periodeAReserver(date, reservations); if (p) onReserver(p.periode, p.type); }}
                       className={`${classe} hover:bg-sky-100`}>{contenu}</button>
-                  ) : <div key={i} style={{ gridColumn: jour, gridRow: 1 }} title={titre} className={classe}>{contenu}</div>;
+                  ) : <div key={i} data-date={date} style={{ gridColumn: jour, gridRow: 1 }} title={titre} className={classe}>{contenu}</div>;
                 })}
                 {barres.map((r) => {
                   const d = r.debut < debutMois ? debutMois : r.debut;
@@ -144,10 +186,26 @@ function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, o
                   const de = versDate(d).getUTCDate(), a = versDate(f).getUTCDate();
                   const arrondi = `${r.debut >= debutMois ? "rounded-l-md ml-0.5" : ""} ${r.fin <= finMois ? "rounded-r-md mr-0.5" : ""}`;
                   return (
-                    <button key={r.id} type="button" onClick={() => onOuvrir(r)}
-                      title={`${r.occupant} · ${dateCourte(r.debut)} → ${dateCourte(r.fin)}${r.note ? ` · ${r.note}` : ""}`}
+                    <button key={r.id} type="button"
+                      onClick={admin ? undefined : () => onOuvrir(r)}
+                      onPointerDown={admin ? (e) => {
+                        if (e.button !== 0) return;
+                        const depart = dateSous(e.clientX, e.clientY);
+                        if (!depart) return;
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        setGlisse({ r, depart, cible: depart, x0: e.clientX, y0: e.clientY, bouge: false });
+                      } : undefined}
+                      onPointerMove={admin ? (e) => {
+                        if (!glisse) return;
+                        const bouge = glisse.bouge || Math.abs(e.clientX - glisse.x0) + Math.abs(e.clientY - glisse.y0) > 6;
+                        setGlisse({ ...glisse, bouge, cible: dateSous(e.clientX, e.clientY) ?? glisse.cible });
+                      } : undefined}
+                      onPointerUp={admin ? finGlisse : undefined}
+                      onPointerCancel={admin ? () => setGlisse(null) : undefined}
+                      onKeyDown={admin ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOuvrir(r); } } : undefined}
+                      title={`${r.occupant} · ${dateCourte(r.debut)} → ${dateCourte(r.fin)}${r.note ? ` · ${r.note}` : ""}${admin ? " · glisser pour déplacer" : ""}`}
                       style={{ gridColumn: `${de} / ${a + 1}`, gridRow: 1 }}
-                      className={`z-10 self-end mb-1.5 h-6 px-1.5 text-left text-[11px] font-semibold leading-6 text-white truncate shadow-sm hover:brightness-110 ${couleurBarre(r.occupant)} ${arrondi}`}>
+                      className={`z-10 self-end mb-1.5 h-6 px-1.5 text-left text-[11px] font-semibold leading-6 text-white truncate shadow-sm hover:brightness-110 ${admin ? "cursor-grab active:cursor-grabbing touch-none select-none" : ""} ${glisse?.bouge && glisse.r.id === r.id ? "opacity-40" : ""} ${couleurBarre(r.occupant)} ${arrondi}`}>
                       {r.occupant}
                     </button>
                   );
@@ -167,7 +225,7 @@ function Legende({ admin, vacances }: { admin: boolean; vacances: boolean }) {
       <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded-sm bg-slate-200/70 border border-slate-300" /> Samedi et dimanche</span>
       {vacances && <span className="flex items-center gap-1.5"><span className="w-4 h-1 bg-amber-400" /> Vacances scolaires zone A (Lyon)</span>}
       <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded-sm ring-2 ring-inset ring-sky-500" /> Aujourd&apos;hui</span>
-      <span>{admin ? "Cliquez sur un jour libre pour réserver sa semaine ou son week-end, ou sur une barre pour la modifier." : "Lecture seule : seuls les administrateurs réservent."}</span>
+      <span>{admin ? "Cliquez sur un jour libre pour réserver sa semaine ou son week-end, sur une barre pour la modifier, ou glissez-la pour la déplacer." : "Lecture seule : seuls les administrateurs réservent."}</span>
     </div>
   );
 }
