@@ -1,4 +1,4 @@
-# Planning familial — Saint François Longchamps
+# Planning familial — Saint François Longchamp
 
 Application web (Next.js + Tailwind + Supabase) pour réserver l'appartement en famille.
 Base technique reprise de l'application Plombelec (connexion Supabase par invitation, comptes à activer, règles appliquées par la base).

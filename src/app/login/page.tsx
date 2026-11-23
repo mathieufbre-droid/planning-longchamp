@@ -29,7 +29,7 @@ export default function Connexion() {
       <form onSubmit={seConnecter} className="w-full max-w-sm bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
         <div className="text-center space-y-1">
           <Mountain className="mx-auto text-sky-700" size={36} aria-hidden />
-          <h1 className="font-bold text-lg">Saint François Longchamps</h1>
+          <h1 className="font-bold text-lg">Saint François Longchamp</h1>
           <p className="text-sm text-gray-500">Planning familial de l&apos;appartement</p>
         </div>
         <input required type="text" autoComplete="username" autoCapitalize="none" placeholder="Identifiant ou email" value={identifiant} onChange={(e) => setIdentifiant(e.target.value)} className="w-full text-sm p-2.5 border border-gray-300 rounded outline-none focus:ring-2 focus:ring-sky-500" />

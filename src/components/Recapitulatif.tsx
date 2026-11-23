@@ -65,7 +65,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
       <section className="bg-white border rounded-2xl overflow-hidden print:border-0 print:rounded-none">
         <header className="flex flex-wrap items-end justify-between gap-3 px-4 sm:px-6 pt-5 pb-4 border-b">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Appartement de Saint François Longchamps</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Appartement de Saint François Longchamp</p>
             <h1 className="text-xl sm:text-2xl font-bold tabular-nums">Synthèse {annee}</h1>
           </div>
           <button type="button" onClick={() => window.print()} className="print:hidden flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border hover:bg-slate-50">

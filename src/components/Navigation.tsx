@@ -25,7 +25,7 @@ export default function Navigation({ profil }: { profil: Profil }) {
       <header className="print:hidden bg-white border-b sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 font-bold text-sky-800">
-            <Mountain size={20} aria-hidden /> Longchamps
+            <Mountain size={20} aria-hidden /> Longchamp
           </Link>
           <nav className="hidden md:flex items-center gap-5">
             {onglets.map(({ href, libelle, Icone }) => (
