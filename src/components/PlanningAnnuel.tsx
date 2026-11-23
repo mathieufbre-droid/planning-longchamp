@@ -9,13 +9,14 @@ import {
   type Periode, type Semaine, type TypeReservation,
 } from "@/lib/planning";
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
+import { vacancesSur, type Vacances } from "@/lib/vacances";
 import FicheReservation, { type Brouillon } from "@/components/FicheReservation";
 
 /** Années proposées en carrés cliquables. */
 const ANNEES = [2026, 2027, 2028, 2029, 2030];
 
 /** Vue annuelle : semaines du lundi au dimanche regroupées par mois ; semaine lundi → vendredi, week-end samedi → dimanche. */
-export default function PlanningAnnuel({ annee, admin }: { annee: number; admin: boolean }) {
+export default function PlanningAnnuel({ annee, admin, vacances }: { annee: number; admin: boolean; vacances: Vacances[] }) {
   const supabase = useMemo(() => createClient(), []);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [occupantsConnus, setOccupantsConnus] = useState<string[]>([]);
@@ -88,6 +89,11 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
         Semaine du lundi au vendredi, week-end le samedi et le dimanche.
         {admin ? " Cliquez sur une semaine ou un week-end libre pour le réserver, ou sur une réservation pour la modifier." : " Lecture seule : seuls les administrateurs réservent."}
       </p>
+      {vacances.length > 0 && (
+        <p className="flex items-center gap-2 text-xs text-slate-500">
+          <span className="inline-block w-4 h-3 rounded-sm bg-amber-50 border border-amber-300" /> Vacances scolaires zone A (académie de Lyon)
+        </p>
+      )}
       {erreur && <p className="text-sm text-red-600">{erreur}</p>}
 
       <div className="space-y-3">
@@ -108,7 +114,7 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
               {ouvert ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {semaines.map((s) => (
-                    <CarteSemaine key={s.debut} semaine={s} reservations={reservations} admin={admin}
+                    <CarteSemaine key={s.debut} semaine={s} reservations={reservations} vacances={vacances} admin={admin}
                       passee={s.fin < aujourdhui} enCours={s.debut <= aujourdhui && aujourdhui <= s.fin}
                       onReserver={nouvelle} onOuvrir={ouvrir} />
                   ))}
@@ -132,23 +138,27 @@ export default function PlanningAnnuel({ annee, admin }: { annee: number; admin:
   );
 }
 
-function CarteSemaine({ semaine, reservations, admin, passee, enCours, onReserver, onOuvrir }: {
-  semaine: Semaine; reservations: Reservation[]; admin: boolean; passee: boolean; enCours: boolean;
+function CarteSemaine({ semaine, reservations, vacances, admin, passee, enCours, onReserver, onOuvrir }: {
+  semaine: Semaine; reservations: Reservation[]; vacances: Vacances[]; admin: boolean; passee: boolean; enCours: boolean;
   onReserver: (p: Periode, type: TypeReservation) => void; onOuvrir: (r: Reservation) => void;
 }) {
   const occupees = reservationsSur(semaine, reservations);
   const toutLibre = occupees.length === 0;
+  // Vacances scolaires zone A (Lyon) qui tombent sur les jours de semaine
+  const conge = vacancesSur(semaine.jours, vacances)[0];
   // Jours restés libres : une réservation à cheval sur deux semaines n'empêche pas de réserver le reste
   const resteSemaine = plusLonguePlageLibre(semaine.jours, reservations);
   const resteWeekEnd = plusLonguePlageLibre(semaine.weekEnd, reservations);
   const bouton = "flex-1 text-xs py-1.5 rounded border border-dashed border-slate-300 text-slate-600 hover:border-sky-500 hover:text-sky-800 hover:bg-sky-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-slate-300 disabled:hover:text-slate-600";
 
   return (
-    <article className={`bg-white border rounded-xl p-3 space-y-2 ${enCours ? "ring-2 ring-sky-500" : ""} ${passee ? "opacity-60" : ""}`}>
+    <article title={conge ? `${conge.libelle} (zone A, Lyon) : ${dateCourte(conge.debut)} → ${dateCourte(conge.fin)}` : undefined}
+      className={`border rounded-xl p-3 space-y-2 ${conge ? "bg-amber-50 border-amber-200" : "bg-white"} ${enCours ? "ring-2 ring-sky-500" : ""} ${passee ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">{intervalle(semaine)}</h3>
         {toutLibre && <span className="text-xs text-emerald-700">Libre</span>}
       </div>
+      {conge && <p className="text-xs text-amber-800 -mt-1">{conge.libelle}</p>}
       {occupees.length > 0 && (
         <ul className="space-y-1">
           {occupees.map((r) => (
