@@ -7,7 +7,7 @@ export default async function PageMembres() {
   return (
     <>
       <Navigation profil={profil} />
-      <GestionMembres moi={profil.id} />
+      <GestionMembres moi={profil.id} proprietaire={profil.proprietaire} />
     </>
   );
 }

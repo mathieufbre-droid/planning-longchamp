@@ -31,7 +31,7 @@ export async function exigerProfil(roles?: Role[]): Promise<Profil> {
 
   const { data: profil } = await supabase
     .from("membres")
-    .select("id, nom, prenom, email, role, actif")
+    .select("id, nom, prenom, email, role, actif, proprietaire")
     .eq("id", user.id)
     .single<Profil>();
 

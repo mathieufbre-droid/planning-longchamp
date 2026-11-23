@@ -9,6 +9,8 @@ export interface Profil {
   email: string;
   role: Role;
   actif: boolean;
+  /** Mathieu : seul à pouvoir nommer et gérer les administrateurs. */
+  proprietaire: boolean;
 }
 
 export interface Reservation {

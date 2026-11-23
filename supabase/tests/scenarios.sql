@@ -6,7 +6,7 @@ INSERT INTO auth.users VALUES
  ('00000000-0000-0000-0000-00000000000a','admin@x.fr','{"nom":"Martin","prenom":"Anne"}'),
  ('00000000-0000-0000-0000-00000000000b','lecteur@x.fr','{"nom":"Martin","prenom":"Paul"}'),
  ('00000000-0000-0000-0000-00000000000c','nouveau@x.fr','{}');
-UPDATE membres SET actif = true, role = 'ADMINISTRATEUR' WHERE email = 'admin@x.fr';
+UPDATE membres SET actif = true, role = 'ADMINISTRATEUR', proprietaire = true WHERE email = 'admin@x.fr';
 UPDATE membres SET actif = true WHERE email = 'lecteur@x.fr';
 
 SET ROLE authenticated;
@@ -49,11 +49,11 @@ DO $$ BEGIN
   UPDATE membres SET actif = true, prenom = 'Léa' WHERE email = 'nouveau@x.fr';
 END $$;
 
--- Lecteur : voit tout, ne modifie rien
+-- Lecteur : voit le planning et son seul profil, ne modifie rien
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000b',false);
 DO $$ DECLARE n INT; BEGIN
   IF (SELECT count(*) FROM reservations) <> 3 THEN RAISE EXCEPTION 'lecteur ne voit pas les réservations'; END IF;
-  IF (SELECT count(*) FROM membres) <> 3 THEN RAISE EXCEPTION 'lecteur ne voit pas les membres'; END IF;
+  IF (SELECT count(*) FROM membres) <> 1 THEN RAISE EXCEPTION 'lecteur voit la liste des membres'; END IF;
   BEGIN
     INSERT INTO reservations (debut, fin, occupant) VALUES ('2027-04-01','2027-04-03','Moi');
     RAISE EXCEPTION 'lecteur a pu réserver';
@@ -76,7 +76,7 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM membres) <> 1 THEN RAISE EXCEPTION 'inactif voit les autres membres'; END IF;
 END $$;
 
--- Admin : promeut un second administrateur, peut alors se rétrograder ; suppression d'une réservation
+-- Admin propriétaire : promeut un second administrateur, peut alors se rétrograder ; suppression d'une réservation
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
 DO $$ DECLARE n INT; BEGIN
   UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'lecteur@x.fr';
@@ -134,6 +134,56 @@ DO $$ BEGIN
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Action réservée%' THEN RAISE; END IF; END;
   BEGIN PERFORM definir_mot_de_passe('00000000-0000-0000-0000-00000000000b', 'motdepasse1'); RAISE EXCEPTION 'lecteur a changé un mot de passe';
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Action réservée%' THEN RAISE; END IF; END;
+END $$;
+
+-- Seul le propriétaire (Anne ici, Mathieu en production) nomme et gère les administrateurs
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','',false); -- tableau de bord Supabase
+UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'admin@x.fr';
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
+DO $$ BEGIN
+  PERFORM ajouter_membre('second', 'motdepasse1', 'Second', 'Admin', 'ADMINISTRATEUR');
+  IF NOT EXISTS (SELECT 1 FROM membres WHERE email = 'second@longchamps.local' AND role = 'ADMINISTRATEUR') THEN RAISE EXCEPTION 'propriétaire ne peut pas créer d''admin'; END IF;
+END $$;
+-- Paul, administrateur non propriétaire
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000b',false);
+DO $$ DECLARE n INT; BEGIN
+  IF (SELECT count(*) FROM membres) < 4 THEN RAISE EXCEPTION 'admin ne voit pas les membres'; END IF;
+  BEGIN PERFORM ajouter_membre('pirate2', 'motdepasse1', '', '', 'ADMINISTRATEUR'); RAISE EXCEPTION 'admin non propriétaire a créé un admin';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  IF EXISTS (SELECT 1 FROM membres WHERE email LIKE 'pirate2%') THEN RAISE EXCEPTION 'compte pirate2 créé'; END IF;
+  BEGIN UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'claire@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a promu';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  BEGIN UPDATE membres SET role = 'LECTEUR' WHERE email = 'second@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a rétrogradé un admin';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  BEGIN UPDATE membres SET actif = false WHERE email = 'second@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a désactivé un admin';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  BEGIN DELETE FROM membres WHERE email = 'second@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a supprimé un admin';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  BEGIN UPDATE membres SET prenom = 'X' WHERE email = 'admin@x.fr'; RAISE EXCEPTION 'admin non propriétaire a modifié le propriétaire';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  BEGIN UPDATE membres SET proprietaire = true WHERE id = auth.uid(); RAISE EXCEPTION 'admin s''est déclaré propriétaire';
+  EXCEPTION WHEN raise_exception OR unique_violation THEN NULL; END;
+  BEGIN PERFORM definir_mot_de_passe((SELECT id FROM membres WHERE email = 'second@longchamps.local'), 'motdepasse2'); RAISE EXCEPTION 'admin non propriétaire a changé le mot de passe d''un admin';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  BEGIN PERFORM definir_mot_de_passe('00000000-0000-0000-0000-00000000000a', 'motdepasse2'); RAISE EXCEPTION 'admin non propriétaire a changé le mot de passe du propriétaire';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  -- Il gère toujours les lecteurs et son propre compte
+  PERFORM definir_mot_de_passe(auth.uid(), 'monmotdepasse');
+  PERFORM definir_mot_de_passe((SELECT id FROM membres WHERE email = 'claire@longchamps.local'), 'motdepasse3');
+  UPDATE membres SET actif = false WHERE email = 'claire@longchamps.local'; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 1 THEN RAISE EXCEPTION 'admin ne peut plus gérer les lecteurs'; END IF;
+  UPDATE membres SET prenom = 'Paulo' WHERE id = auth.uid();
+END $$;
+-- Le propriétaire, lui, gère les administrateurs
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
+DO $$ BEGIN
+  UPDATE membres SET role = 'LECTEUR' WHERE email = 'second@longchamps.local';
+  UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'claire@longchamps.local';
+  PERFORM definir_mot_de_passe('00000000-0000-0000-0000-00000000000b', 'motdepasse4');
+  BEGIN UPDATE membres SET proprietaire = false WHERE id = auth.uid(); RAISE EXCEPTION 'propriétaire changé depuis l''application';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Le propriétaire%' THEN RAISE; END IF; END;
 END $$;
 
 \echo 'TOUS LES SCÉNARIOS PASSENT'
