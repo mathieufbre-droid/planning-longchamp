@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Tailwind 4 : bordures grises par défaut (comme Tailwind 3) */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  /* Marges gérées par la page : le navigateur n'ajoute plus date, heure ni adresse en haut et en bas */
+  @page { size: A4; margin: 0; }
+  body { background: white; }
+  .page-imprimee { padding: 12mm 14mm; }
+}

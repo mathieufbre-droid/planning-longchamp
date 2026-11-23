@@ -1,0 +1,88 @@
+-- Scénarios de vérification des règles (à lancer après stubs + migrations)
+\set ON_ERROR_STOP on
+GRANT USAGE ON SCHEMA public TO authenticated;
+
+INSERT INTO auth.users VALUES
+ ('00000000-0000-0000-0000-00000000000a','admin@x.fr','{"nom":"Martin","prenom":"Anne"}'),
+ ('00000000-0000-0000-0000-00000000000b','lecteur@x.fr','{"nom":"Martin","prenom":"Paul"}'),
+ ('00000000-0000-0000-0000-00000000000c','nouveau@x.fr','{}');
+UPDATE membres SET actif = true, role = 'ADMINISTRATEUR' WHERE email = 'admin@x.fr';
+UPDATE membres SET actif = true WHERE email = 'lecteur@x.fr';
+
+SET ROLE authenticated;
+
+-- Admin : réserve deux semaines consécutives (samedi → samedi) et un week-end
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
+INSERT INTO reservations (arrivee, depart, type, occupant) VALUES
+ ('2026-12-19','2026-12-26','SEMAINE','Famille Martin'),
+ ('2026-12-26','2027-01-02','SEMAINE','Cousins Durand'),
+ ('2027-01-08','2027-01-10','WEEK_END','Paul');
+DO $$ BEGIN
+  IF (SELECT count(*) FROM reservations) <> 3 THEN RAISE EXCEPTION 'réservations manquantes'; END IF;
+  IF (SELECT cree_par FROM reservations WHERE occupant = 'Paul') <> auth.uid() THEN RAISE EXCEPTION 'cree_par non renseigné'; END IF;
+  -- Chevauchement refusé
+  BEGIN
+    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2026-12-24','2026-12-27','Intrus');
+    RAISE EXCEPTION 'chevauchement accepté';
+  EXCEPTION WHEN exclusion_violation THEN NULL; END;
+  -- Dates incohérentes refusées
+  BEGIN
+    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2027-02-10','2027-02-10','Zéro nuit');
+    RAISE EXCEPTION 'réservation de zéro nuit acceptée';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  -- Occupant obligatoire
+  BEGIN
+    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2027-03-01','2027-03-03','  ');
+    RAISE EXCEPTION 'occupant vide accepté';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  -- Modification et suppression
+  UPDATE reservations SET note = 'Arrivée tardive' WHERE occupant = 'Paul';
+  IF (SELECT note FROM reservations WHERE occupant = 'Paul') <> 'Arrivée tardive' THEN RAISE EXCEPTION 'modification admin refusée'; END IF;
+  -- Le dernier administrateur ne peut pas se rétrograder
+  BEGIN
+    UPDATE membres SET role = 'LECTEUR' WHERE id = auth.uid();
+    RAISE EXCEPTION 'dernier admin rétrogradé';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM NOT LIKE 'Il doit rester%' THEN RAISE; END IF;
+  END;
+  -- Active le nouveau compte
+  UPDATE membres SET actif = true, prenom = 'Léa' WHERE email = 'nouveau@x.fr';
+END $$;
+
+-- Lecteur : voit tout, ne modifie rien
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000b',false);
+DO $$ DECLARE n INT; BEGIN
+  IF (SELECT count(*) FROM reservations) <> 3 THEN RAISE EXCEPTION 'lecteur ne voit pas les réservations'; END IF;
+  IF (SELECT count(*) FROM membres) <> 3 THEN RAISE EXCEPTION 'lecteur ne voit pas les membres'; END IF;
+  BEGIN
+    INSERT INTO reservations (arrivee, depart, occupant) VALUES ('2027-04-01','2027-04-03','Moi');
+    RAISE EXCEPTION 'lecteur a pu réserver';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  UPDATE reservations SET occupant = 'Pirate'; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'lecteur a modifié une réservation'; END IF;
+  DELETE FROM reservations; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'lecteur a supprimé une réservation'; END IF;
+  UPDATE membres SET role = 'ADMINISTRATEUR' WHERE id = auth.uid(); GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'lecteur s''est promu administrateur'; END IF;
+END $$;
+
+-- Compte désactivé : ne voit que son profil
+RESET ROLE;
+UPDATE membres SET actif = false WHERE email = 'nouveau@x.fr';
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000c',false);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM reservations) <> 0 THEN RAISE EXCEPTION 'inactif voit les réservations'; END IF;
+  IF (SELECT count(*) FROM membres) <> 1 THEN RAISE EXCEPTION 'inactif voit les autres membres'; END IF;
+END $$;
+
+-- Admin : promeut un second administrateur, peut alors se rétrograder ; suppression d'une réservation
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
+DO $$ DECLARE n INT; BEGIN
+  UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'lecteur@x.fr';
+  DELETE FROM reservations WHERE occupant = 'Paul'; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 1 THEN RAISE EXCEPTION 'admin ne peut pas supprimer'; END IF;
+  UPDATE membres SET role = 'LECTEUR' WHERE id = auth.uid();
+END $$;
+
+\echo 'TOUS LES SCÉNARIOS PASSENT'
