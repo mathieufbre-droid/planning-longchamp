@@ -7,7 +7,7 @@ export const ANNEES = [2026, 2027, 2028, 2029, 2030];
 export default function ChoixAnnee({ annee, chemin }: { annee: number; chemin: string }) {
   const anneeCourante = new Date().getFullYear();
   return (
-    <nav aria-label="Choisir l'année" className="grid grid-cols-5 gap-2 sm:flex sm:flex-wrap">
+    <nav aria-label="Choisir l'année" className="print:hidden grid grid-cols-5 gap-2 sm:flex sm:flex-wrap">
       {ANNEES.map((a) => (
         <Link key={a} href={`${chemin}?annee=${a}`} aria-current={a === annee ? "page" : undefined}
           className={`aspect-square sm:w-24 sm:h-24 rounded-xl border-2 flex flex-col items-center justify-center font-bold text-base sm:text-xl tabular-nums transition-colors ${

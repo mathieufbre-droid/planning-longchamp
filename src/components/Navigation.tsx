@@ -22,7 +22,7 @@ export default function Navigation({ profil }: { profil: Profil }) {
 
   return (
     <>
-      <header className="bg-white border-b sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
+      <header className="print:hidden bg-white border-b sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 font-bold text-sky-800">
             <Mountain size={20} aria-hidden /> Longchamps
@@ -44,7 +44,7 @@ export default function Navigation({ profil }: { profil: Profil }) {
         </div>
       </header>
       {onglets.length > 1 && (
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t pb-[env(safe-area-inset-bottom)]" aria-label="Navigation">
+        <nav className="print:hidden md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t pb-[env(safe-area-inset-bottom)]" aria-label="Navigation">
           <div className="grid" style={{ gridTemplateColumns: `repeat(${onglets.length}, 1fr)` }}>
             {onglets.map(({ href, libelle, Icone }) => (
               <Link key={href} href={href} aria-current={actif(href) ? "page" : undefined}
