@@ -37,6 +37,10 @@ Les droits sont vérifiés par la base (Row Level Security), pas seulement par l
    WHERE email = 'vous@exemple.fr';
    ```
    Les membres suivants s'activent depuis `/membres`.
+
+   Pour un compte à **identifiant simple** (sans email, ex. `mathieufabre`) : créer l'utilisateur dans
+   **Authentication > Users > Add user** avec l'email `mathieufabre@longchamps.local`, cocher « Auto Confirm User » ;
+   on se connecte ensuite en tapant juste `mathieufabre`.
 5. Copier `.env.example` en `.env.local` et renseigner l'URL et la clé `anon` (**Project Settings > API**).
 6. `npm install` puis `npm run dev` et ouvrir http://localhost:3000.
 

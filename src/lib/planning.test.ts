@@ -51,3 +51,9 @@ test("occupation d'une semaine et libellés", () => {
   assert.equal(intervalle({ debut: "2026-12-28", fin: "2027-01-03" }), "28 déc. → 3 janv.");
   assert.equal(intervalle({ debut: "2027-01-04", fin: "2027-01-08" }), "4 → 8 janv.");
 });
+
+test("identifiant simple ou email", async () => {
+  const { emailDeConnexion } = await import("./identifiant.ts");
+  assert.equal(emailDeConnexion(" MathieuFabre "), "mathieufabre@longchamps.local");
+  assert.equal(emailDeConnexion("a@b.fr"), "a@b.fr");
+});
