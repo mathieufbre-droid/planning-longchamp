@@ -100,7 +100,7 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
 
         <label className="text-sm space-y-1 block">
           <span className="text-slate-600">Nombre de nuitées</span>
-          <input type="number" required min={1} max={5000} step={1} inputMode="numeric" disabled={!admin} placeholder="Nbr de nuits × nbr de personnes" value={f.nuitees}
+          <input type="number" required min={1} max={5000} step={1} inputMode="numeric" disabled={!admin} placeholder="Nbr de nuits × nbr de personnes (adultes uniquement)" value={f.nuitees}
             onChange={(e) => setF({ ...f, nuitees: e.target.value })} className={champ} />
         </label>
 
