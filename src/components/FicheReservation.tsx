@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { dateCourte, jours, verifierPeriode, type TypeReservation } from "@/lib/planning";
+import { dateCourte, jours, nuits, verifierPeriode, type TypeReservation } from "@/lib/planning";
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
 
 export interface Brouillon {
@@ -14,6 +14,7 @@ export interface Brouillon {
   occupant: string;
   /** Texte saisi, pour laisser le champ vide pendant la frappe */
   nb_occupants: string;
+  nuitees: string;
   note: string;
 }
 
@@ -37,10 +38,11 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
   const enregistrer = async (e: React.FormEvent) => {
     e.preventDefault();
     const probleme = verifierPeriode(f, reservations, f.id) ?? (f.occupant.trim() ? null : "Indiquez qui occupe l'appartement.")
-      ?? (/^\d+$/.test(f.nb_occupants.trim()) && +f.nb_occupants >= 1 && +f.nb_occupants <= 50 ? null : "Indiquez le nombre d'occupants (de 1 à 50).");
+      ?? (/^\d+$/.test(f.nb_occupants.trim()) && +f.nb_occupants >= 1 && +f.nb_occupants <= 50 ? null : "Indiquez le nombre d'occupants (de 1 à 50).")
+      ?? (/^\d+$/.test(f.nuitees.trim()) && +f.nuitees >= 1 && +f.nuitees <= 5000 ? null : "Indiquez le nombre de nuitées (au moins 1).");
     if (probleme) return setErreur(probleme);
     setEnvoi(true);
-    const valeurs = { debut: f.debut, fin: f.fin, type: f.type, occupant: f.occupant.trim(), nb_occupants: Number(f.nb_occupants), note: f.note.trim() };
+    const valeurs = { debut: f.debut, fin: f.fin, type: f.type, occupant: f.occupant.trim(), nb_occupants: Number(f.nb_occupants), nuitees: Number(f.nuitees), note: f.note.trim() };
     const { error } = f.id
       ? await supabase.from("reservations").update(valeurs).eq("id", f.id)
       : await supabase.from("reservations").insert(valeurs);
@@ -60,6 +62,8 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
 
   const champ = "w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-50";
   const duree = f.debut && f.fin && f.fin >= f.debut ? jours(f) : 0;
+  const nbNuits = duree ? nuits(f) : 0;
+  const suggestion = nbNuits && /^\d+$/.test(f.nb_occupants.trim()) && +f.nb_occupants > 0 ? +f.nb_occupants * nbNuits : 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onFermer}>
@@ -102,6 +106,17 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
           <span className="text-slate-600">Nombre d&apos;occupants</span>
           <input type="number" required min={1} max={50} step={1} inputMode="numeric" disabled={!admin} placeholder="Ex. : 4" value={f.nb_occupants}
             onChange={(e) => setF({ ...f, nb_occupants: e.target.value })} className={champ} />
+        </label>
+
+        <label className="text-sm space-y-1 block">
+          <span className="text-slate-600">Nombre de nuitées</span>
+          <input type="number" required min={1} max={5000} step={1} inputMode="numeric" disabled={!admin} placeholder={suggestion ? String(suggestion) : "Ex. : 16"} value={f.nuitees}
+            onChange={(e) => setF({ ...f, nuitees: e.target.value })} className={champ} />
+          {admin && suggestion > 0 && String(suggestion) !== f.nuitees.trim() && (
+            <button type="button" onClick={() => setF({ ...f, nuitees: String(suggestion) })} className="text-xs text-sky-700 hover:underline">
+              Mettre {f.nb_occupants} × {nbNuits} nuit{nbNuits > 1 ? "s" : ""} = {suggestion}
+            </button>
+          )}
         </label>
 
         <label className="text-sm space-y-1 block">

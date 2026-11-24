@@ -12,10 +12,11 @@ export default function Navigation({ profil }: { profil: Profil }) {
   const onglets = [
     { href: "/", libelle: "Planning", Icone: CalendarDays },
     ...(profil.role === "ADMINISTRATEUR" ? [
-      { href: "/membres", libelle: "Membres", Icone: Users },
-      { href: "/journal", libelle: "Journal", Icone: History },
       { href: "/recapitulatif", libelle: "Récapitulatif", Icone: ReceiptEuro },
+      { href: "/membres", libelle: "Membres", Icone: Users },
     ] : []),
+    // Journal : réservé au propriétaire de l'application
+    ...(profil.proprietaire && profil.role === "ADMINISTRATEUR" ? [{ href: "/journal", libelle: "Journal", Icone: History }] : []),
   ];
   const actif = (href: string) => (href === "/" ? chemin === "/" : chemin.startsWith(href));
   const nom = [profil.prenom, profil.nom].filter(Boolean).join(" ") || profil.email;

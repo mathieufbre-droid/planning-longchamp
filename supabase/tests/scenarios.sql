@@ -90,13 +90,9 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM journal) <> 0 THEN RAISE EXCEPTION 'lecteur lit le journal'; END IF;
 END $$;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000b',false);
--- Journal : tout est tracé avec l'auteur ; seul l'admin le lit ; personne ne le modifie
-DO $$ DECLARE n INT; BEGIN
-  IF (SELECT count(*) FROM journal WHERE objet = 'RESERVATION' AND action = 'AJOUT' AND auteur = 'Anne Martin') <> 3 THEN RAISE EXCEPTION 'ajouts non journalisés'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'RESERVATION' AND action = 'MODIFICATION' AND avant->>'note' = '' AND apres->>'note' = 'Arrivée tardive') THEN RAISE EXCEPTION 'modification non journalisée'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'RESERVATION' AND action = 'SUPPRESSION' AND avant->>'occupant' = 'Paul') THEN RAISE EXCEPTION 'suppression non journalisée'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'MODIFICATION' AND apres->>'role' = 'LECTEUR' AND avant->>'role' = 'ADMINISTRATEUR') THEN RAISE EXCEPTION 'changement de rôle non journalisé'; END IF;
-  IF EXISTS (SELECT 1 FROM journal WHERE action = 'MODIFICATION' AND avant = apres) THEN RAISE EXCEPTION 'modification vide journalisée'; END IF;
+-- Journal : un administrateur non propriétaire ne le lit pas ; personne ne le modifie
+DO $$ BEGIN
+  IF (SELECT count(*) FROM journal) <> 0 THEN RAISE EXCEPTION 'admin non propriétaire lit le journal'; END IF;
 END $$;
 DO $$ DECLARE n INT; BEGIN
   BEGIN
@@ -113,16 +109,19 @@ END $$;
 DO $$ DECLARE v UUID; BEGIN
   v := ajouter_membre('Claire', 'motdepasse1', 'Claire', 'Durand', 'LECTEUR');
   IF NOT EXISTS (SELECT 1 FROM membres WHERE id = v AND email = 'claire@longchamps.local' AND actif AND role = 'LECTEUR' AND prenom = 'Claire') THEN RAISE EXCEPTION 'membre mal créé'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'AJOUT' AND objet_id = v::TEXT AND auteur = 'Paul Martin') THEN RAISE EXCEPTION 'ajout de membre non journalisé'; END IF;
   BEGIN PERFORM ajouter_membre('claire', 'autremotdepasse', '', '', 'LECTEUR'); RAISE EXCEPTION 'doublon accepté';
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Ce compte existe%' THEN RAISE; END IF; END;
   BEGIN PERFORM ajouter_membre('court', '1234', '', '', 'LECTEUR'); RAISE EXCEPTION 'mot de passe court accepté';
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Le mot de passe%' THEN RAISE; END IF; END;
   PERFORM definir_mot_de_passe(v, 'nouveaumdp1');
+END $$;
+RESET ROLE;
+-- Vérifié hors application : le journal n'est lisible que du propriétaire
+DO $$ DECLARE v UUID := (SELECT id FROM membres WHERE email = 'claire@longchamps.local'); BEGIN
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'AJOUT' AND objet_id = v::TEXT AND auteur = 'Paul Martin') THEN RAISE EXCEPTION 'ajout de membre non journalisé'; END IF;
   IF NOT EXISTS (SELECT 1 FROM journal WHERE objet_id = v::TEXT AND apres->>'mot_de_passe' = 'modifié') THEN RAISE EXCEPTION 'changement de mot de passe non journalisé'; END IF;
   IF EXISTS (SELECT 1 FROM journal WHERE apres::TEXT LIKE '%nouveaumdp1%' OR avant::TEXT LIKE '%nouveaumdp1%') THEN RAISE EXCEPTION 'mot de passe en clair dans le journal'; END IF;
 END $$;
-RESET ROLE;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'claire@longchamps.local' AND encrypted_password = extensions.crypt('nouveaumdp1', encrypted_password)) THEN RAISE EXCEPTION 'mot de passe non changé'; END IF;
 END $$;
@@ -142,6 +141,14 @@ SELECT set_config('request.jwt.claim.sub','',false); -- tableau de bord Supabase
 UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'admin@x.fr';
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
+-- Le propriétaire lit le journal : tout est tracé avec l'auteur
+DO $$ BEGIN
+  IF (SELECT count(*) FROM journal WHERE objet = 'RESERVATION' AND action = 'AJOUT' AND auteur = 'Anne Martin') <> 3 THEN RAISE EXCEPTION 'ajouts non journalisés'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'RESERVATION' AND action = 'MODIFICATION' AND avant->>'note' = '' AND apres->>'note' = 'Arrivée tardive') THEN RAISE EXCEPTION 'modification non journalisée'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'RESERVATION' AND action = 'SUPPRESSION' AND avant->>'occupant' = 'Paul') THEN RAISE EXCEPTION 'suppression non journalisée'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'MODIFICATION' AND apres->>'role' = 'LECTEUR' AND avant->>'role' = 'ADMINISTRATEUR') THEN RAISE EXCEPTION 'changement de rôle non journalisé'; END IF;
+  IF EXISTS (SELECT 1 FROM journal WHERE action = 'MODIFICATION' AND avant = apres) THEN RAISE EXCEPTION 'modification vide journalisée'; END IF;
+END $$;
 DO $$ BEGIN
   PERFORM ajouter_membre('second', 'motdepasse1', 'Second', 'Admin', 'ADMINISTRATEUR');
   IF NOT EXISTS (SELECT 1 FROM membres WHERE email = 'second@longchamps.local' AND role = 'ADMINISTRATEUR') THEN RAISE EXCEPTION 'propriétaire ne peut pas créer d''admin'; END IF;
@@ -241,6 +248,8 @@ BEGIN
   END;
   INSERT INTO reservations (debut, fin, occupant) VALUES ('2029-02-05','2029-02-09','Sans nombre');
   IF (SELECT nb_occupants FROM reservations WHERE occupant = 'Sans nombre') <> 0 THEN RAISE EXCEPTION 'défaut différent de 0'; END IF;
+  UPDATE reservations SET nuitees = 16 WHERE occupant = 'Occupants';
+  IF (SELECT nuitees FROM reservations WHERE occupant = 'Sans nombre') <> 0 THEN RAISE EXCEPTION 'nuitées par défaut différentes de 0'; END IF;
   DELETE FROM reservations WHERE occupant IN ('Occupants', 'Sans nombre');
   RAISE NOTICE 'Nombre d''occupants : OK';
 END $$;

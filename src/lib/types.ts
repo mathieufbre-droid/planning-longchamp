@@ -21,6 +21,8 @@ export interface Reservation {
   occupant: string;
   /** Nombre de personnes présentes (0 = pas encore renseigné). */
   nb_occupants: number;
+  /** Nuitées saisies dans la réservation (0 = pas encore renseigné). */
+  nuitees: number;
   note: string;
 }
 
