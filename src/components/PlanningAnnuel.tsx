@@ -30,7 +30,7 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
     const debut = `${annee}-01-01`;
     const fin = semainesDeLAnnee(annee).at(-1)!.fin;
     const [{ data, error }, { data: membres }] = await Promise.all([
-      supabase.from("reservations").select("id, debut, fin, type, occupant, note")
+      supabase.from("reservations").select("id, debut, fin, type, occupant, nb_occupants, note")
         .lte("debut", fin).gte("fin", debut).order("debut"),
       supabase.from("membres").select("prenom, nom").eq("actif", true),
     ]);
@@ -45,8 +45,8 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
 
   useEffect(() => { charger(); }, [charger]);
 
-  const nouvelle = (p: Periode, type: TypeReservation) => setFiche({ debut: p.debut, fin: p.fin, type, occupant: "", note: "" });
-  const ouvrir = (r: Reservation) => setFiche({ ...r });
+  const nouvelle = (p: Periode, type: TypeReservation) => setFiche({ debut: p.debut, fin: p.fin, type, occupant: "", nb_occupants: "", note: "" });
+  const ouvrir = (r: Reservation) => setFiche({ ...r, nb_occupants: r.nb_occupants ? String(r.nb_occupants) : "" });
 
   // Déplacement par glisser-déposer, avec possibilité d'annuler
   const [annulation, setAnnulation] = useState<{ id: number; avant: Pick<Reservation, "debut" | "fin" | "type">; texte: string } | null>(null);

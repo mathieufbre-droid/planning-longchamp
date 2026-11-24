@@ -229,4 +229,18 @@ DO $$ BEGIN
   DELETE FROM reservations WHERE debut >= '2028-03-01' AND debut < '2028-04-01';
 END $$;
 
+-- ---------- Nombre d'occupants ----------
+DO $$
+BEGIN
+  INSERT INTO reservations (debut, fin, occupant, nb_occupants) VALUES ('2029-01-01','2029-01-05','Occupants', 4);
+  IF (SELECT nb_occupants FROM reservations WHERE occupant = 'Occupants') <> 4 THEN RAISE EXCEPTION 'nombre d''occupants non enregistré'; END IF;
+  BEGIN
+    UPDATE reservations SET nb_occupants = 0 WHERE occupant = 'Occupants';
+    RAISE EXCEPTION 'zéro occupant accepté';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  DELETE FROM reservations WHERE occupant = 'Occupants';
+  RAISE NOTICE 'Nombre d''occupants : OK';
+END $$;
+
 \echo 'TOUS LES SCÉNARIOS PASSENT'

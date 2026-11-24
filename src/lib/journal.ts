@@ -34,7 +34,7 @@ const nomMembre = (m: Record<string, unknown>) => {
 function differences(e: EntreeJournal): string[] {
   const a = e.avant ?? {}, b = e.apres ?? {};
   const champs: [string, string, (v: unknown) => string][] = e.objet === "RESERVATION"
-    ? [["occupant", "occupant", txt], ["debut", "premier jour", (v) => `${dateCourte(String(v))} ${annee(v)}`],
+    ? [["occupant", "occupant", txt], ["nb_occupants", "nombre d'occupants", txt], ["debut", "premier jour", (v) => `${dateCourte(String(v))} ${annee(v)}`],
        ["fin", "dernier jour", (v) => `${dateCourte(String(v))} ${annee(v)}`], ["type", "type", (v) => TYPES[String(v)] ?? txt(v)], ["note", "note", txt],
        ["montant", "montant à payer", euros], ["paye", "payé", (v) => (v ? "oui" : "non")]]
     : [["prenom", "prénom", txt], ["nom", "nom", txt], ["role", "rôle", (v) => ROLES[String(v)] ?? txt(v)]];

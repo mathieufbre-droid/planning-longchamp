@@ -12,6 +12,8 @@ export interface Brouillon {
   fin: string;
   type: TypeReservation;
   occupant: string;
+  /** Texte saisi, pour laisser le champ vide pendant la frappe */
+  nb_occupants: string;
   note: string;
 }
 
@@ -34,10 +36,11 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
 
   const enregistrer = async (e: React.FormEvent) => {
     e.preventDefault();
-    const probleme = verifierPeriode(f, reservations, f.id) ?? (f.occupant.trim() ? null : "Indiquez qui occupe l'appartement.");
+    const probleme = verifierPeriode(f, reservations, f.id) ?? (f.occupant.trim() ? null : "Indiquez qui occupe l'appartement.")
+      ?? (/^\d+$/.test(f.nb_occupants.trim()) && +f.nb_occupants >= 1 && +f.nb_occupants <= 50 ? null : "Indiquez le nombre d'occupants (de 1 à 50).");
     if (probleme) return setErreur(probleme);
     setEnvoi(true);
-    const valeurs = { debut: f.debut, fin: f.fin, type: f.type, occupant: f.occupant.trim(), note: f.note.trim() };
+    const valeurs = { debut: f.debut, fin: f.fin, type: f.type, occupant: f.occupant.trim(), nb_occupants: Number(f.nb_occupants), note: f.note.trim() };
     const { error } = f.id
       ? await supabase.from("reservations").update(valeurs).eq("id", f.id)
       : await supabase.from("reservations").insert(valeurs);
@@ -96,8 +99,14 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
         </label>
 
         <label className="text-sm space-y-1 block">
+          <span className="text-slate-600">Nombre d&apos;occupants</span>
+          <input type="number" required min={1} max={50} step={1} inputMode="numeric" disabled={!admin} placeholder="Ex. : 4" value={f.nb_occupants}
+            onChange={(e) => setF({ ...f, nb_occupants: e.target.value })} className={champ} />
+        </label>
+
+        <label className="text-sm space-y-1 block">
           <span className="text-slate-600">Note</span>
-          <textarea disabled={!admin} rows={2} placeholder="Arrivée tardive, ménage, nombre de personnes…" value={f.note}
+          <textarea disabled={!admin} rows={2} placeholder="Arrivée tardive, ménage…" value={f.note}
             onChange={(e) => setF({ ...f, note: e.target.value })} className={champ} />
         </label>
 

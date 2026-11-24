@@ -19,6 +19,8 @@ export interface Reservation {
   fin: string;
   type: TypeReservation;
   occupant: string;
+  /** Nombre de personnes présentes (vide pour les anciennes réservations). */
+  nb_occupants: number | null;
   note: string;
 }
 
