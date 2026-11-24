@@ -30,9 +30,6 @@ export const ajouterJours = (iso: string, n: number) => versIso(new Date(versDat
 /** Nuits passées : arrivée le premier jour, départ le dernier jour. */
 export const nuits = (p: Periode) => Math.max(0, jours(p) - 1);
 
-/** Nuitées : nombre d'occupants × nombre de nuits (0 tant que le nombre d'occupants n'est pas saisi). */
-export const nuitees = (p: Periode & { nb_occupants: number | null }) => (p.nb_occupants ?? 0) * nuits(p);
-
 export const jours = (p: Periode) => Math.round((versDate(p.fin).getTime() - versDate(p.debut).getTime()) / JOUR) + 1;
 
 /** Les semaines du lundi au dimanche dont le lundi tombe dans l'année. */

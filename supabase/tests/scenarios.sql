@@ -236,22 +236,21 @@ DO $$ BEGIN
   DELETE FROM reservations WHERE debut >= '2028-03-01' AND debut < '2028-04-01';
 END $$;
 
--- ---------- Nombre d'occupants ----------
+-- ---------- Nuitées saisies dans la réservation ----------
 DO $$
 BEGIN
-  INSERT INTO reservations (debut, fin, occupant, nb_occupants) VALUES ('2029-01-01','2029-01-05','Occupants', 4);
-  IF (SELECT nb_occupants FROM reservations WHERE occupant = 'Occupants') <> 4 THEN RAISE EXCEPTION 'nombre d''occupants non enregistré'; END IF;
+  INSERT INTO reservations (debut, fin, occupant, nuitees) VALUES ('2029-01-01','2029-01-05','Nuitées', 16);
+  IF (SELECT nuitees FROM reservations WHERE occupant = 'Nuitées') <> 16 THEN RAISE EXCEPTION 'nuitées non enregistrées'; END IF;
   BEGIN
-    UPDATE reservations SET nb_occupants = -1 WHERE occupant = 'Occupants';
-    RAISE EXCEPTION 'nombre négatif accepté';
+    UPDATE reservations SET nuitees = -1 WHERE occupant = 'Nuitées';
+    RAISE EXCEPTION 'nuitées négatives acceptées';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
-  INSERT INTO reservations (debut, fin, occupant) VALUES ('2029-02-05','2029-02-09','Sans nombre');
-  IF (SELECT nb_occupants FROM reservations WHERE occupant = 'Sans nombre') <> 0 THEN RAISE EXCEPTION 'défaut différent de 0'; END IF;
-  UPDATE reservations SET nuitees = 16 WHERE occupant = 'Occupants';
-  IF (SELECT nuitees FROM reservations WHERE occupant = 'Sans nombre') <> 0 THEN RAISE EXCEPTION 'nuitées par défaut différentes de 0'; END IF;
-  DELETE FROM reservations WHERE occupant IN ('Occupants', 'Sans nombre');
-  RAISE NOTICE 'Nombre d''occupants : OK';
+  INSERT INTO reservations (debut, fin, occupant) VALUES ('2029-02-05','2029-02-09','Sans nuitées');
+  IF (SELECT nuitees FROM reservations WHERE occupant = 'Sans nuitées') <> 0 THEN RAISE EXCEPTION 'nuitées par défaut différentes de 0'; END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reservations' AND column_name = 'nb_occupants') THEN RAISE EXCEPTION 'nombre d''occupants encore présent'; END IF;
+  DELETE FROM reservations WHERE occupant IN ('Nuitées', 'Sans nuitées');
+  RAISE NOTICE 'Nuitées : OK';
 END $$;
 
 \echo 'TOUS LES SCÉNARIOS PASSENT'

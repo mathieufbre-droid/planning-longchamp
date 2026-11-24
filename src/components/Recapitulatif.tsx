@@ -12,7 +12,6 @@ interface Ligne {
   debut: string;
   fin: string;
   occupant: string;
-  nb_occupants: number;
   nuitees: number;
   montant: number | null;
   paye: boolean;
@@ -33,14 +32,14 @@ export default function Recapitulatif({ annee }: { annee: number }) {
 
   const charger = useCallback(async () => {
     const { data, error } = await supabase.from("reservations")
-      .select("id, debut, fin, occupant, nb_occupants, nuitees, paiements(montant, paye)")
+      .select("id, debut, fin, occupant, nuitees, paiements(montant, paye)")
       .gte("debut", `${annee}-01-01`).lte("debut", `${annee}-12-31`).order("debut");
     // Tant que la mise à jour de la base n'est pas faite, la table des paiements n'existe pas
     const baseAncienne = error && (error.code === "PGRST200" || error.code === "42P01" || /paiements/.test(error.message));
     setErreur(baseAncienne ? "La base de données doit d'abord être mise à jour pour afficher le récapitulatif." : error ? messageErreur(error) : "");
     setLignes(((data ?? []) as (Omit<Ligne, "montant" | "paye"> & { paiements: Paiement | Paiement[] | null })[]).map(({ paiements, ...r }) => {
       const p = Array.isArray(paiements) ? paiements[0] : paiements;
-      return { ...r, nb_occupants: r.nb_occupants ?? 0, nuitees: r.nuitees ?? 0, montant: p?.montant === null || p?.montant === undefined ? null : Number(p.montant), paye: p?.paye ?? false };
+      return { ...r, nuitees: r.nuitees ?? 0, montant: p?.montant === null || p?.montant === undefined ? null : Number(p.montant), paye: p?.paye ?? false };
     }));
     setCharge(true);
   }, [supabase, annee]);
@@ -58,7 +57,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
   const encaisse = lignes.reduce((s, l) => s + (l.paye ? l.montant ?? 0 : 0), 0);
   const totalNuits = lignes.reduce((s, l) => s + nuits(l), 0);
   const totalNuitees = lignes.reduce((s, l) => s + l.nuitees, 0);
-  const aCompleter = lignes.filter((l) => !l.nb_occupants || !l.nuitees).length;
+  const aCompleter = lignes.filter((l) => !l.nuitees).length;
 
   const nbPayees = lignes.filter((l) => l.paye).length;
   const sansMontant = lignes.filter((l) => l.montant === null).length;
@@ -96,8 +95,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
                   <th className="hidden sm:table-cell px-6 py-2 text-left font-medium">Arrivée</th>
                   <th className="hidden sm:table-cell px-3 py-2 text-left font-medium">Départ</th>
                   <th className="px-2 sm:px-3 py-2 text-left font-medium">Nom</th>
-                  <th className="px-2 sm:px-3 py-2 text-right font-medium"><span className="sm:hidden">Pers.</span><span className="hidden sm:inline">Nbr de personnes</span></th>
-                  <th className="px-2 sm:px-3 py-2 text-right font-medium">Nuitées</th>
+                                    <th className="px-2 sm:px-3 py-2 text-right font-medium">Nuitées</th>
                   <th className="px-2 sm:px-3 py-2 text-right font-medium">Montant</th>
                   <th className="px-2 sm:px-6 py-2 text-center font-medium">Payé</th>
                 </tr>
@@ -109,8 +107,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
                     <td className="hidden sm:table-cell px-6 py-2 whitespace-nowrap tabular-nums">{dateCourte(l.debut)}</td>
                     <td className="hidden sm:table-cell px-3 py-2 whitespace-nowrap tabular-nums">{dateCourte(l.fin)}</td>
                     <td className="px-2 sm:px-3 py-2">{l.occupant}</td>
-                    <td className={`px-2 sm:px-3 py-2 text-right tabular-nums ${l.nb_occupants ? "" : "text-amber-700"}`} title={l.nb_occupants ? undefined : "À renseigner dans la réservation (planning)"}>{l.nb_occupants}</td>
-                    <td className={`px-2 sm:px-3 py-2 text-right tabular-nums ${l.nuitees ? "" : "text-amber-700"}`} title={l.nuitees ? undefined : "À renseigner dans la réservation (planning)"}>{l.nuitees}</td>
+                                        <td className={`px-2 sm:px-3 py-2 text-right tabular-nums ${l.nuitees ? "" : "text-amber-700"}`} title={l.nuitees ? undefined : "À renseigner dans la réservation (planning)"}>{l.nuitees}</td>
                     <td className="px-2 sm:px-3 py-2 text-right"><Montant valeur={l.montant} onValider={(montant) => enregistrer(l, { montant })} /></td>
                     <td className="px-2 sm:px-6 py-2 text-center"><Paye ligne={l} onChanger={(paye) => enregistrer(l, { paye })} /></td>
                   </tr>
@@ -120,8 +117,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
                 <tr>
                   <td className="sm:hidden px-3 py-2.5" colSpan={2}>Total</td>
                   <td className="hidden sm:table-cell px-6 py-2.5" colSpan={3}>Total {annee}</td>
-                  <td className="px-2 sm:px-3 py-2.5"></td>
-                  <td className="px-2 sm:px-3 py-2.5 text-right tabular-nums">{totalNuitees}</td>
+                                    <td className="px-2 sm:px-3 py-2.5 text-right tabular-nums">{totalNuitees}</td>
                   <td className="px-2 sm:px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{euros(total)}</td>
                   <td className="px-2 sm:px-6 py-2.5 text-center tabular-nums whitespace-nowrap">{nbPayees} / {lignes.length}</td>
                 </tr>
@@ -130,7 +126,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
           </div>
         )}
       </section>
-      <p className="print:hidden text-xs text-slate-500">Personnes et nuitées sont celles saisies dans chaque réservation{aCompleter ? ` (${aCompleter} réservation${aCompleter > 1 ? "s" : ""} à compléter depuis le planning, affichée${aCompleter > 1 ? "s" : ""} à 0)` : ""}. Cliquez sur un montant pour le saisir ou le corriger, et sur la case pour marquer la réservation comme payée. Visible des seuls administrateurs.</p>
+      <p className="print:hidden text-xs text-slate-500">Les nuitées sont celles saisies dans chaque réservation{aCompleter ? ` (${aCompleter} réservation${aCompleter > 1 ? "s" : ""} à compléter depuis le planning, affichée${aCompleter > 1 ? "s" : ""} à 0)` : ""}. Cliquez sur un montant pour le saisir ou le corriger, et sur la case pour marquer la réservation comme payée. Visible des seuls administrateurs.</p>
     </main>
   );
 }
