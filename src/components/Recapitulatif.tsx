@@ -12,7 +12,7 @@ interface Ligne {
   debut: string;
   fin: string;
   occupant: string;
-  nb_occupants: number | null;
+  nb_occupants: number;
   montant: number | null;
   paye: boolean;
 }
@@ -39,7 +39,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
     setErreur(baseAncienne ? "La base de données doit d'abord être mise à jour pour afficher le récapitulatif." : error ? messageErreur(error) : "");
     setLignes(((data ?? []) as (Omit<Ligne, "montant" | "paye"> & { paiements: Paiement | Paiement[] | null })[]).map(({ paiements, ...r }) => {
       const p = Array.isArray(paiements) ? paiements[0] : paiements;
-      return { ...r, montant: p?.montant === null || p?.montant === undefined ? null : Number(p.montant), paye: p?.paye ?? false };
+      return { ...r, nb_occupants: r.nb_occupants ?? 0, montant: p?.montant === null || p?.montant === undefined ? null : Number(p.montant), paye: p?.paye ?? false };
     }));
     setCharge(true);
   }, [supabase, annee]);
@@ -95,6 +95,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
                   <th className="hidden sm:table-cell px-6 py-2 text-left font-medium">Arrivée</th>
                   <th className="hidden sm:table-cell px-3 py-2 text-left font-medium">Départ</th>
                   <th className="px-2 sm:px-3 py-2 text-left font-medium">Nom</th>
+                  <th className="px-2 sm:px-3 py-2 text-right font-medium"><span className="sm:hidden">Pers.</span><span className="hidden sm:inline">Nbr de personnes</span></th>
                   <th className="px-2 sm:px-3 py-2 text-right font-medium">Nuitées</th>
                   <th className="px-2 sm:px-3 py-2 text-right font-medium">Montant</th>
                   <th className="px-2 sm:px-6 py-2 text-center font-medium">Payé</th>
@@ -107,11 +108,8 @@ export default function Recapitulatif({ annee }: { annee: number }) {
                     <td className="hidden sm:table-cell px-6 py-2 whitespace-nowrap tabular-nums">{dateCourte(l.debut)}</td>
                     <td className="hidden sm:table-cell px-3 py-2 whitespace-nowrap tabular-nums">{dateCourte(l.fin)}</td>
                     <td className="px-2 sm:px-3 py-2">{l.occupant}</td>
-                    <td className="px-2 sm:px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                      {l.nb_occupants
-                        ? <span title={`${l.nb_occupants} occupant${l.nb_occupants > 1 ? "s" : ""} × ${nuits(l)} nuit${nuits(l) > 1 ? "s" : ""}`}>{nuitees(l)}<span className="block text-[11px] font-normal text-slate-500">{l.nb_occupants} × {nuits(l)} n.</span></span>
-                        : <span className="text-slate-400" title="Nombre d'occupants à saisir dans la réservation (planning)">? × {nuits(l)} n.</span>}
-                    </td>
+                    <td className={`px-2 sm:px-3 py-2 text-right tabular-nums ${l.nb_occupants ? "" : "text-amber-700"}`} title={l.nb_occupants ? undefined : "À renseigner dans la réservation (planning)"}>{l.nb_occupants}</td>
+                    <td className="px-2 sm:px-3 py-2 text-right tabular-nums" title={`${l.nb_occupants} × ${nuits(l)} nuit${nuits(l) > 1 ? "s" : ""}`}>{nuitees(l)}</td>
                     <td className="px-2 sm:px-3 py-2 text-right"><Montant valeur={l.montant} onValider={(montant) => enregistrer(l, { montant })} /></td>
                     <td className="px-2 sm:px-6 py-2 text-center"><Paye ligne={l} onChanger={(paye) => enregistrer(l, { paye })} /></td>
                   </tr>
@@ -121,6 +119,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
                 <tr>
                   <td className="sm:hidden px-3 py-2.5" colSpan={2}>Total</td>
                   <td className="hidden sm:table-cell px-6 py-2.5" colSpan={3}>Total {annee}</td>
+                  <td className="px-2 sm:px-3 py-2.5"></td>
                   <td className="px-2 sm:px-3 py-2.5 text-right tabular-nums">{totalNuitees}</td>
                   <td className="px-2 sm:px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{euros(total)}</td>
                   <td className="px-2 sm:px-6 py-2.5 text-center tabular-nums whitespace-nowrap">{nbPayees} / {lignes.length}</td>
@@ -130,7 +129,7 @@ export default function Recapitulatif({ annee }: { annee: number }) {
           </div>
         )}
       </section>
-      <p className="print:hidden text-xs text-slate-500">Nuitées = nombre d'occupants × nombre de nuits{sansOccupants ? ` (${sansOccupants} réservation${sansOccupants > 1 ? "s" : ""} sans nombre d'occupants : à compléter depuis le planning)` : ""}. Cliquez sur un montant pour le saisir ou le corriger, et sur la case pour marquer la réservation comme payée. Visible des seuls administrateurs ; chaque changement est noté dans le journal.</p>
+      <p className="print:hidden text-xs text-slate-500">Nuitées = nombre d'occupants × nombre de nuits{sansOccupants ? ` (${sansOccupants} réservation${sansOccupants > 1 ? "s" : ""} sans nombre d'occupants : à 0, à compléter depuis le planning)` : ""}. Cliquez sur un montant pour le saisir ou le corriger, et sur la case pour marquer la réservation comme payée. Visible des seuls administrateurs ; chaque changement est noté dans le journal.</p>
     </main>
   );
 }

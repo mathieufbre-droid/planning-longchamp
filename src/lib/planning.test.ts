@@ -119,5 +119,5 @@ test("jour de changement : au plus deux réservations le même jour", async () =
 test("nuitées = occupants × nuits", async () => {
   const { nuitees } = await import("./planning.ts");
   assert.equal(nuitees({ debut: "2026-12-28", fin: "2027-01-01", nb_occupants: 3 }), 12);
-  assert.equal(nuitees({ debut: "2026-12-28", fin: "2027-01-01", nb_occupants: null }), 0);
+  assert.equal(nuitees({ debut: "2026-12-28", fin: "2027-01-01", nb_occupants: 0 }), 0);
 });

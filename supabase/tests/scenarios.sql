@@ -235,11 +235,13 @@ BEGIN
   INSERT INTO reservations (debut, fin, occupant, nb_occupants) VALUES ('2029-01-01','2029-01-05','Occupants', 4);
   IF (SELECT nb_occupants FROM reservations WHERE occupant = 'Occupants') <> 4 THEN RAISE EXCEPTION 'nombre d''occupants non enregistré'; END IF;
   BEGIN
-    UPDATE reservations SET nb_occupants = 0 WHERE occupant = 'Occupants';
-    RAISE EXCEPTION 'zéro occupant accepté';
+    UPDATE reservations SET nb_occupants = -1 WHERE occupant = 'Occupants';
+    RAISE EXCEPTION 'nombre négatif accepté';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
-  DELETE FROM reservations WHERE occupant = 'Occupants';
+  INSERT INTO reservations (debut, fin, occupant) VALUES ('2029-02-05','2029-02-09','Sans nombre');
+  IF (SELECT nb_occupants FROM reservations WHERE occupant = 'Sans nombre') <> 0 THEN RAISE EXCEPTION 'défaut différent de 0'; END IF;
+  DELETE FROM reservations WHERE occupant IN ('Occupants', 'Sans nombre');
   RAISE NOTICE 'Nombre d''occupants : OK';
 END $$;
 
