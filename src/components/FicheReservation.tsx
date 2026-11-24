@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { dateCourte, jours, verifierPeriode, type TypeReservation } from "@/lib/planning";
+import { dateCourte, jours, nuits, verifierPeriode, type TypeReservation } from "@/lib/planning";
 import { LIBELLES_TYPE, messageErreur, type Reservation } from "@/lib/types";
 
 export interface Brouillon {
@@ -82,7 +82,7 @@ export default function FicheReservation({ brouillon, admin, reservations, occup
             <input type="date" required disabled={!admin} value={f.fin} min={f.debut || undefined} onChange={(e) => setF({ ...f, fin: e.target.value })} className={champ} />
           </label>
         </div>
-        {duree > 0 && <p className="text-xs text-slate-500 -mt-2">{dateCourte(f.debut)} → {dateCourte(f.fin)} · {duree} jour{duree > 1 ? "s" : ""}</p>}
+        {duree > 0 && <p className="text-xs text-slate-500 -mt-2">{dateCourte(f.debut)} → {dateCourte(f.fin)} · {duree} jour{duree > 1 ? "s" : ""} - {nuits(f)} nuit{nuits(f) > 1 ? "s" : ""}</p>}
 
         <label className="text-sm space-y-1 block">
           <span className="text-slate-600">Type</span>
