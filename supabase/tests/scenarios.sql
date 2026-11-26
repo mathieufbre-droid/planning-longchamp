@@ -105,34 +105,22 @@ DO $$ DECLARE n INT; BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 
--- Ajout de membres depuis l'application (b est administrateur à ce stade)
-DO $$ DECLARE v UUID; BEGIN
-  v := ajouter_membre('Claire', 'motdepasse1', 'Claire', 'Durand', 'LECTEUR');
-  IF NOT EXISTS (SELECT 1 FROM membres WHERE id = v AND email = 'claire@longchamps.local' AND actif AND role = 'LECTEUR' AND prenom = 'Claire') THEN RAISE EXCEPTION 'membre mal créé'; END IF;
-  BEGIN PERFORM ajouter_membre('claire', 'autremotdepasse', '', '', 'LECTEUR'); RAISE EXCEPTION 'doublon accepté';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Ce compte existe%' THEN RAISE; END IF; END;
-  BEGIN PERFORM ajouter_membre('court', '1234', '', '', 'LECTEUR'); RAISE EXCEPTION 'mot de passe court accepté';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Le mot de passe%' THEN RAISE; END IF; END;
-  PERFORM definir_mot_de_passe(v, 'nouveaumdp1');
-END $$;
-RESET ROLE;
--- Vérifié hors application : le journal n'est lisible que du propriétaire
-DO $$ DECLARE v UUID := (SELECT id FROM membres WHERE email = 'claire@longchamps.local'); BEGIN
-  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'AJOUT' AND objet_id = v::TEXT AND auteur = 'Paul Martin') THEN RAISE EXCEPTION 'ajout de membre non journalisé'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet_id = v::TEXT AND apres->>'mot_de_passe' = 'modifié') THEN RAISE EXCEPTION 'changement de mot de passe non journalisé'; END IF;
-  IF EXISTS (SELECT 1 FROM journal WHERE apres::TEXT LIKE '%nouveaumdp1%' OR avant::TEXT LIKE '%nouveaumdp1%') THEN RAISE EXCEPTION 'mot de passe en clair dans le journal'; END IF;
-END $$;
+-- Un administrateur non propriétaire n'ajoute pas de membre
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'claire@longchamps.local' AND encrypted_password = extensions.crypt('nouveaumdp1', encrypted_password)) THEN RAISE EXCEPTION 'mot de passe non changé'; END IF;
+  BEGIN PERFORM ajouter_membre('Claire', 'motdepasse1', 'Claire', 'Durand', 'LECTEUR'); RAISE EXCEPTION 'admin non propriétaire a ajouté un membre';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
 END $$;
 SET ROLE authenticated;
 -- Un lecteur ne peut pas ajouter de membre
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
 DO $$ BEGIN
   BEGIN PERFORM ajouter_membre('pirate', 'motdepasse1', '', '', 'ADMINISTRATEUR'); RAISE EXCEPTION 'lecteur a ajouté un membre';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Action réservée%' THEN RAISE; END IF; END;
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
   BEGIN PERFORM definir_mot_de_passe('00000000-0000-0000-0000-00000000000b', 'motdepasse1'); RAISE EXCEPTION 'lecteur a changé un mot de passe';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Action réservée%' THEN RAISE; END IF; END;
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
+  -- mais il change le sien
+  PERFORM definir_mot_de_passe(auth.uid(), 'monnouveaumdp');
+  IF (SELECT count(*) FROM membres) <> 1 THEN RAISE EXCEPTION 'lecteur voit les autres membres'; END IF;
 END $$;
 
 -- Seul le propriétaire (Anne ici, Mathieu en production) nomme et gère les administrateurs
@@ -149,39 +137,52 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'MODIFICATION' AND apres->>'role' = 'LECTEUR' AND avant->>'role' = 'ADMINISTRATEUR') THEN RAISE EXCEPTION 'changement de rôle non journalisé'; END IF;
   IF EXISTS (SELECT 1 FROM journal WHERE action = 'MODIFICATION' AND avant = apres) THEN RAISE EXCEPTION 'modification vide journalisée'; END IF;
 END $$;
+-- Ajout de membres depuis l'application par le propriétaire
+DO $$ DECLARE v UUID; BEGIN
+  v := ajouter_membre('Claire', 'motdepasse1', 'Claire', 'Durand', 'LECTEUR');
+  IF NOT EXISTS (SELECT 1 FROM membres WHERE id = v AND email = 'claire@longchamps.local' AND actif AND role = 'LECTEUR' AND prenom = 'Claire') THEN RAISE EXCEPTION 'membre mal créé'; END IF;
+  BEGIN PERFORM ajouter_membre('claire', 'autremotdepasse', '', '', 'LECTEUR'); RAISE EXCEPTION 'doublon accepté';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Ce compte existe%' THEN RAISE; END IF; END;
+  BEGIN PERFORM ajouter_membre('court', '1234', '', '', 'LECTEUR'); RAISE EXCEPTION 'mot de passe court accepté';
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Le mot de passe%' THEN RAISE; END IF; END;
+  PERFORM definir_mot_de_passe(v, 'nouveaumdp1');
+END $$;
+RESET ROLE;
+-- Vérifié hors application : le journal n'est lisible que du propriétaire
+DO $$ DECLARE v UUID := (SELECT id FROM membres WHERE email = 'claire@longchamps.local'); BEGIN
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet = 'MEMBRE' AND action = 'AJOUT' AND objet_id = v::TEXT AND auteur = 'Anne Martin') THEN RAISE EXCEPTION 'ajout de membre non journalisé'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM journal WHERE objet_id = v::TEXT AND apres->>'mot_de_passe' = 'modifié') THEN RAISE EXCEPTION 'changement de mot de passe non journalisé'; END IF;
+  IF EXISTS (SELECT 1 FROM journal WHERE apres::TEXT LIKE '%nouveaumdp1%' OR avant::TEXT LIKE '%nouveaumdp1%') THEN RAISE EXCEPTION 'mot de passe en clair dans le journal'; END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'claire@longchamps.local' AND encrypted_password = extensions.crypt('nouveaumdp1', encrypted_password)) THEN RAISE EXCEPTION 'mot de passe non changé'; END IF;
+END $$;
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
 DO $$ BEGIN
   PERFORM ajouter_membre('second', 'motdepasse1', 'Second', 'Admin', 'ADMINISTRATEUR');
   IF NOT EXISTS (SELECT 1 FROM membres WHERE email = 'second@longchamps.local' AND role = 'ADMINISTRATEUR') THEN RAISE EXCEPTION 'propriétaire ne peut pas créer d''admin'; END IF;
 END $$;
--- Paul, administrateur non propriétaire
+SELECT set_config('test.claire', (SELECT id::TEXT FROM membres WHERE email = 'claire@longchamps.local'), false);
+-- Paul, administrateur non propriétaire : ne voit que son compte, ne gère aucun membre, change son mot de passe
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000b',false);
 DO $$ DECLARE n INT; BEGIN
-  IF (SELECT count(*) FROM membres) < 4 THEN RAISE EXCEPTION 'admin ne voit pas les membres'; END IF;
-  BEGIN PERFORM ajouter_membre('pirate2', 'motdepasse1', '', '', 'ADMINISTRATEUR'); RAISE EXCEPTION 'admin non propriétaire a créé un admin';
+  IF (SELECT count(*) FROM membres) <> 1 THEN RAISE EXCEPTION 'admin non propriétaire voit les autres membres'; END IF;
+  BEGIN PERFORM ajouter_membre('pirate2', 'motdepasse1', '', '', 'LECTEUR'); RAISE EXCEPTION 'admin non propriétaire a créé un membre';
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
-  IF EXISTS (SELECT 1 FROM membres WHERE email LIKE 'pirate2%') THEN RAISE EXCEPTION 'compte pirate2 créé'; END IF;
-  BEGIN UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'claire@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a promu';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
-  BEGIN UPDATE membres SET role = 'LECTEUR' WHERE email = 'second@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a rétrogradé un admin';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
-  BEGIN UPDATE membres SET actif = false WHERE email = 'second@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a désactivé un admin';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
-  BEGIN DELETE FROM membres WHERE email = 'second@longchamps.local'; RAISE EXCEPTION 'admin non propriétaire a supprimé un admin';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
-  BEGIN UPDATE membres SET prenom = 'X' WHERE email = 'admin@x.fr'; RAISE EXCEPTION 'admin non propriétaire a modifié le propriétaire';
-  EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
-  BEGIN UPDATE membres SET proprietaire = true WHERE id = auth.uid(); RAISE EXCEPTION 'admin s''est déclaré propriétaire';
-  EXCEPTION WHEN raise_exception OR unique_violation THEN NULL; END;
-  BEGIN PERFORM definir_mot_de_passe((SELECT id FROM membres WHERE email = 'second@longchamps.local'), 'motdepasse2'); RAISE EXCEPTION 'admin non propriétaire a changé le mot de passe d''un admin';
+  UPDATE membres SET role = 'ADMINISTRATEUR' WHERE email = 'claire@longchamps.local'; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'admin non propriétaire a promu'; END IF;
+  UPDATE membres SET actif = false WHERE email = 'claire@longchamps.local'; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'admin non propriétaire a désactivé un lecteur'; END IF;
+  DELETE FROM membres WHERE email = 'second@longchamps.local'; GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'admin non propriétaire a supprimé un membre'; END IF;
+  UPDATE membres SET proprietaire = true, prenom = 'Paulo' WHERE id = auth.uid(); GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 0 THEN RAISE EXCEPTION 'admin non propriétaire a modifié sa fiche'; END IF;
+  BEGIN PERFORM definir_mot_de_passe(current_setting('test.claire')::UUID, 'motdepasse2'); RAISE EXCEPTION 'admin non propriétaire a changé le mot de passe d''un lecteur';
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
   BEGIN PERFORM definir_mot_de_passe('00000000-0000-0000-0000-00000000000a', 'motdepasse2'); RAISE EXCEPTION 'admin non propriétaire a changé le mot de passe du propriétaire';
   EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Seul Mathieu%' THEN RAISE; END IF; END;
-  -- Il gère toujours les lecteurs et son propre compte
   PERFORM definir_mot_de_passe(auth.uid(), 'monmotdepasse');
-  PERFORM definir_mot_de_passe((SELECT id FROM membres WHERE email = 'claire@longchamps.local'), 'motdepasse3');
-  UPDATE membres SET actif = false WHERE email = 'claire@longchamps.local'; GET DIAGNOSTICS n = ROW_COUNT;
-  IF n <> 1 THEN RAISE EXCEPTION 'admin ne peut plus gérer les lecteurs'; END IF;
-  UPDATE membres SET prenom = 'Paulo' WHERE id = auth.uid();
 END $$;
 -- Le propriétaire, lui, gère les administrateurs
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);

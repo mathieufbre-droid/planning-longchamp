@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { DOMAINE_IDENTIFIANTS } from "@/lib/identifiant";
 import { LIBELLES_ROLE, messageErreur, type Profil, type Role } from "@/lib/types";
 
-/** Membres de la famille : ajout, activation, rôle, nom affiché, mot de passe. Réservé aux administrateurs. */
+/** Membres de la famille : ajout, activation, rôle, nom affiché, mot de passe. Réservé à Mathieu (propriétaire). */
 export default function GestionMembres({ moi, proprietaire }: { moi: string; proprietaire: boolean }) {
   const supabase = useMemo(() => createClient(), []);
   const [membres, setMembres] = useState<Profil[]>([]);
@@ -45,8 +45,8 @@ export default function GestionMembres({ moi, proprietaire }: { moi: string; pro
     <main className="max-w-5xl mx-auto p-4 pb-24 md:p-8 space-y-4">
       <h1 className="text-lg font-bold">Membres</h1>
       <div className="text-sm text-slate-600 space-y-1">
-        <p><strong>Administrateur</strong> : réserve, modifie et supprime les séjours, gère les lecteurs. <strong>Lecteur</strong> : consulte uniquement le planning.</p>
-        <p>Seul Mathieu peut nommer, modifier ou retirer un administrateur.</p>
+        <p><strong>Administrateur</strong> : réserve, modifie et supprime les séjours, tient le récapitulatif. <strong>Lecteur</strong> : consulte le planning.</p>
+        <p>Vous seul voyez et gérez cette liste. Les autres membres, administrateurs compris, ne voient ici que leur propre compte et peuvent changer leur mot de passe.</p>
       </div>
       {enAttente > 0 && <p className="text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded p-2">{enAttente} compte{enAttente > 1 ? "s" : ""} en attente d&apos;activation.</p>}
       <FormulaireAjout proprietaire={proprietaire} onAjoute={(nom) => { setMessage(""); setSucces(`${nom} a été ajouté(e). Communiquez-lui son identifiant et son mot de passe.`); charger(); }} onErreur={(e) => { setSucces(""); setMessage(e); }} />

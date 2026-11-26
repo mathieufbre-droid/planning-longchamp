@@ -11,10 +11,9 @@ export default function Navigation({ profil }: { profil: Profil }) {
   const chemin = usePathname();
   const onglets = [
     { href: "/", libelle: "Planning", Icone: CalendarDays },
-    ...(profil.role === "ADMINISTRATEUR" ? [
-      { href: "/recapitulatif", libelle: "Récapitulatif", Icone: ReceiptEuro },
-      { href: "/membres", libelle: "Membres", Icone: Users },
-    ] : []),
+    ...(profil.role === "ADMINISTRATEUR" ? [{ href: "/recapitulatif", libelle: "Récapitulatif", Icone: ReceiptEuro }] : []),
+    // Tout le monde : seul Mathieu y voit tous les membres, les autres leur propre compte
+    { href: "/membres", libelle: "Membres", Icone: Users },
     // Journal : réservé au propriétaire de l'application
     ...(profil.proprietaire && profil.role === "ADMINISTRATEUR" ? [{ href: "/journal", libelle: "Journal", Icone: History }] : []),
   ];
