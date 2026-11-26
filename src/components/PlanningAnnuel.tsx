@@ -86,7 +86,7 @@ export default function PlanningAnnuel({ annee, admin, vacances }: { annee: numb
           </button>
         )}
       </div>
-      <Legende admin={admin} vacances={vacances.length > 0} />
+      <Legende admin={admin} vacances={vacances.some((v) => !v.provisoire)} provisoires={vacances.some((v) => v.provisoire && v.debut.slice(0, 4) <= String(annee) && v.fin.slice(0, 4) >= String(annee))} />
       {erreur && <p className="text-sm text-red-600">{erreur}</p>}
 
       {nbPasses > 0 && (
@@ -174,7 +174,7 @@ function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, o
                   const contenu = (
                     <>
                       {JOURS_LETTRES[versDate(date).getUTCDay()]}
-                      {conge && <span className="absolute inset-x-0 bottom-0 h-1 bg-amber-400" />}
+                      {conge && <span className={`absolute inset-x-0 bottom-0 h-1 ${conge.provisoire ? "bg-amber-200" : "bg-amber-400"}`} />}
                     </>
                   );
                   const titre = `${dateCourte(date)}${conge ? ` · ${conge.libelle}` : ""}`;
@@ -226,11 +226,12 @@ function GrilleAnnee({ annee, mois, reservations, vacances, aujourdhui, admin, o
   );
 }
 
-function Legende({ admin, vacances }: { admin: boolean; vacances: boolean }) {
+function Legende({ admin, vacances, provisoires }: { admin: boolean; vacances: boolean; provisoires: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
       <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded-sm bg-slate-200/70 border border-slate-300" /> Samedi et dimanche</span>
       {vacances && <span className="flex items-center gap-1.5"><span className="w-4 h-1 bg-amber-400" /> Vacances scolaires zone A (Lyon)</span>}
+      {provisoires && <span className="flex items-center gap-1.5"><span className="w-4 h-1 bg-amber-200" /> Dates provisoires (calendrier pas encore publié)</span>}
       <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded-sm ring-2 ring-inset ring-sky-500" /> Aujourd&apos;hui</span>
       <span>{admin ? "Cliquez sur un jour libre pour réserver sa semaine ou son week-end, sur une barre pour la modifier, ou glissez-la pour la déplacer." : "Lecture seule : seuls les administrateurs réservent."}</span>
     </div>
