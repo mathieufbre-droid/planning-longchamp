@@ -3,8 +3,8 @@ import type { Periode } from "./planning.ts";
 /** Vacances scolaires de l'académie de Lyon (zone A), source officielle du ministère de l'Éducation nationale. */
 export const SOURCE_VACANCES =
   "https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records" +
-  // Seulement les années récentes (à partir d'août 2025) : triée par date, la liste complète (depuis 2017) dépassait la limite de 100 lignes
-  "?where=location%3D%22Lyon%22%20and%20start_date%3E%3Ddate%272025-08-01%27&limit=100&order_by=start_date";
+  // Les plus récentes d'abord : triée dans l'ordre croissant, la liste complète (depuis 2017) dépassait la limite de 100 lignes
+  "?where=location%3D%22Lyon%22&limit=100&order_by=start_date%20desc";
 
 export interface Vacances extends Periode {
   libelle: string;
